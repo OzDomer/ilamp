@@ -93,6 +93,10 @@ class FakeLamp:
         self.state.update(fields)
         self._reply(state_message(p.Op.REPORT, 0x01, self.state))
 
+    def vanish(self):
+        """The lamp is unplugged or walks out of range: the link drops without warning."""
+        self._drop(report=True)
+
     def _handle(self, data: bytes):
         if data == p.HELLO:
             self._hello_seen = True
