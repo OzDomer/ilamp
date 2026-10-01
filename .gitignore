@@ -8,7 +8,7 @@ __pycache__/
 *.pklg
 *.pcap
 *.pcapng
-sysdiagnose_*/
+sysdiagnose_*
 
 # Node toolchain for the TypeScript UI (hub/ui -> hub/static)
 node_modules/
