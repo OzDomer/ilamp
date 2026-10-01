@@ -69,7 +69,8 @@ TIME_SYNC = PacketType(b"\x53\x00")  # us -> lamp, sets the lamp's clock
 
 
 class Group(IntEnum):
-    LIGHT = 0x02
+    SUN = 0x01  # the white ring (separate LEDs), found in the 2026-10-02 capture
+    LIGHT = 0x02  # the RGB light
     SYSTEM = 0xFF
 
 
@@ -84,6 +85,14 @@ class Cmd(IntEnum):
     STATE = 0x02  # the full light state (used with READ)
     MODE = 0x04
     COLOR = 0x0C
+
+
+class SunCmd(IntEnum):
+    """Commands of the sun ring (Group.SUN)."""
+
+    POWER = 0x01  # WRITE [Power]; REPORT [power, level]
+    LEVEL = 0x02  # WRITE [value]; a READ of it answers [power, level]. Meaning unconfirmed.
+    TEMPERATURE = 0x03  # WRITE/REPORT [0-255], warm <-> cool. Which end is which: sun_check
 
 
 class Power(IntEnum):
@@ -159,6 +168,40 @@ def read_state() -> bytes:
     return wrap(COMMAND, inner(Group.LIGHT, Op.READ, Cmd.STATE, bytes(6)))
 
 
+# -- the sun ring -------------------------------------------------------------
+
+
+def sun_power(on: bool) -> bytes:
+    """
+    Turn the white ring on or off. The lamp turns the RGB light off by
+    itself when the ring comes on: they never run together.
+    """
+    value = Power.ON if on else Power.OFF
+    return wrap(COMMAND, inner(Group.SUN, Op.WRITE, SunCmd.POWER, [value]))
+
+
+def sun_temperature(value: int) -> bytes:
+    """The ring's warm <-> cool mix, 0-255."""
+    _check_byte("temperature", value)
+    return wrap(COMMAND, inner(Group.SUN, Op.WRITE, SunCmd.TEMPERATURE, [value]))
+
+
+def sun_level(value: int) -> bytes:
+    """The ring's 'level' (the app re-applies 0x10; what it does is unconfirmed)."""
+    _check_byte("level", value)
+    return wrap(COMMAND, inner(Group.SUN, Op.WRITE, SunCmd.LEVEL, [value]))
+
+
+def read_sun_state() -> bytes:
+    """Ask for the ring's [power, level]. The app sends this on startup."""
+    return wrap(COMMAND, inner(Group.SUN, Op.READ, SunCmd.LEVEL, [0, 0]))
+
+
+def _check_byte(name: str, value: int) -> None:
+    if not 0 <= value <= 255:
+        raise ValueError(f"{name} must be 0-255, got {value}")
+
+
 def time_sync(when: datetime) -> bytes:
     """
     Set the lamp's clock (it has an alarm feature). Unlike other packets,
@@ -196,6 +239,19 @@ class LampState:
         return cls(power_byte == Power.ON, brightness, (r, g, b), m)
 
 
+@dataclass(frozen=True)
+class SunUpdate:
+    """
+    A partial update about the sun ring. The lamp reports the ring in two
+    separate messages (power + level, and temperature), so one update only
+    knows the fields its message carried; the others are None.
+    """
+
+    on: bool | None
+    level: int | None
+    temperature: int | None
+
+
 def packet_type(data: bytes) -> PacketType | None:
     """Return the type of a packet, or None if it isn't one of ours."""
     if len(data) < WRAPPER_SIZE or data[:4] != HEADER:
@@ -224,3 +280,27 @@ def parse_state(data: bytes) -> LampState | None:
     if not (is_report or is_state_answer):
         return None
     return LampState.from_payload(msg[5:11])
+
+
+def parse_sun(data: bytes) -> SunUpdate | None:
+    """
+    Extract a sun-ring update from a lamp reply, if it carries one:
+
+      - report after a power change:   0d 08 01 04 01 <power> <level> 0e
+      - answer to read_sun_state():    0d 08 01 02 02 <power> <level> 0e
+      - report after a slider change:  0d 07 01 04 03 <temperature> 0e
+    """
+    if packet_type(data) != REPLY:
+        return None
+    msg = data[WRAPPER_SIZE:]
+    if len(msg) < 7 or msg[0] != START or msg[2] != Group.SUN:
+        return None
+    op, cmd, args = msg[3], msg[4], msg[5 : msg[1] - 1]
+    power_and_level = (op == Op.REPORT and cmd == SunCmd.POWER) or (
+        op == Op.READ and cmd == SunCmd.LEVEL
+    )
+    if power_and_level and len(args) >= 2:
+        return SunUpdate(on=args[0] == Power.ON, level=args[1], temperature=None)
+    if op == Op.REPORT and cmd == SunCmd.TEMPERATURE and len(args) >= 1:
+        return SunUpdate(on=None, level=None, temperature=args[0])
+    return None

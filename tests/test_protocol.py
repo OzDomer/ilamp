@@ -11,8 +11,10 @@ Run:  python -m pytest
 
 from datetime import datetime
 
+import pytest
+
 from ilamp import protocol as p
-from ilamp.protocol import LampState, Mode
+from ilamp.protocol import LampState, Mode, SunUpdate
 
 
 def hx(s: str) -> bytes:
@@ -136,3 +138,58 @@ def test_packet_type():
     assert p.packet_type(p.heartbeat()) == p.HEARTBEAT
     assert p.packet_type(p.power(True)) == p.COMMAND
     assert p.packet_type(b"\x00" * 20) is None
+
+
+# ---------------------------------------------------------------------------
+# The sun ring (white LEDs): group 0x01. Frames from the 2026-10-02 capture.
+# ---------------------------------------------------------------------------
+
+
+def test_sun_power_matches_capture():
+    # frame 13481: the app turning the sun ring on
+    assert p.sun_power(True) == hx("01fe0000 5181 1800 0000000000000000 0d07010301010e00")
+    # never captured (the app only sent "on"); by analogy with Power.OFF, confirmed by sun_check
+    assert p.sun_power(False) == hx("01fe0000 5181 1800 0000000000000000 0d07010301020e00")
+
+
+def test_sun_temperature_matches_capture():
+    # frame 13594: the warm/cool slider at 0x57
+    assert p.sun_temperature(0x57) == hx("01fe0000 5181 1800 0000000000000000 0d07010303570e00")
+    with pytest.raises(ValueError):
+        p.sun_temperature(256)
+
+
+def test_sun_level_matches_capture():
+    # frame 15122: the app re-applying "level" 0x10 (meaning unconfirmed)
+    assert p.sun_level(0x10) == hx("01fe0000 5181 1800 0000000000000000 0d07010302100e00")
+
+
+def test_read_sun_state_matches_capture():
+    # frame 13408: the app asking for the ring's state on startup
+    assert p.read_sun_state() == hx("01fe0000 5181 1800 0000000000000000 0d0801020200000e")
+
+
+def test_parse_sun_report_after_power_on():
+    # frame 13483: the lamp's report after sun on: [power, level]
+    reply = hx("01fe0000 4181 1800 0000000000000000 0d0801040101100e")
+    assert p.parse_sun(reply) == SunUpdate(on=True, level=0x10, temperature=None)
+
+
+def test_parse_sun_temperature_report():
+    # frame 13598: the lamp echoing the slider
+    reply = hx("01fe0000 4181 1700 0000000000000000 0d07010403570e")
+    assert p.parse_sun(reply) == SunUpdate(on=None, level=None, temperature=0x57)
+
+
+def test_parse_answer_to_read_sun_state():
+    # frame 13427: the answer on startup, ring off
+    reply = hx("01fe0000 4181 1800 0000000000000000 0d0801020202100e")
+    assert p.parse_sun(reply) == SunUpdate(on=False, level=0x10, temperature=None)
+
+
+def test_sun_and_light_parsers_ignore_each_other():
+    sun_report = hx("01fe0000 4181 1800 0000000000000000 0d0801040101100e")
+    light_report = hx("01fe0000 4181 1c00 0000000000000000 0d0c02040101ffff7359000e")  # frame 15761
+    assert p.parse_state(sun_report) is None
+    assert p.parse_sun(light_report) is None
+    assert p.parse_sun(b"hello") is None
