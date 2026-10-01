@@ -10,12 +10,13 @@ requires-python = ">=3.11"
 dependencies = ["bleak>=0.21"]
 
 [project.optional-dependencies]
-dev = ["pytest", "ruff"]
+dev = ["pytest", "ruff", "httpx2"]  # httpx2: what Starlette's TestClient uses
+hub = ["fastapi", "uvicorn", "websockets"]
 
-# Only ilamp/ is the library. tests/ and examples/ stay in the repo
-# but don't get installed as packages.
+# ilamp/ is the library, hub/ the server. tests/ and examples/ stay in
+# the repo but don't get installed as packages.
 [tool.setuptools]
-packages = ["ilamp"]
+packages = ["ilamp", "hub"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

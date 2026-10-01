@@ -82,6 +82,10 @@ class LampService:
     def status(self) -> HubStatus:
         return self._status
 
+    @property
+    def subscriber_count(self) -> int:
+        return len(self._subscribers)
+
     # -- subscriptions --------------------------------------------------------
 
     @asynccontextmanager
