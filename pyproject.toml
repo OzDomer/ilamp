@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "ilamp"
 version = "0.1.0"
@@ -7,6 +11,11 @@ dependencies = ["bleak>=0.21"]
 
 [project.optional-dependencies]
 dev = ["pytest"]
+
+# Only ilamp/ is the library. tests/ and examples/ stay in the repo
+# but don't get installed as packages.
+[tool.setuptools]
+packages = ["ilamp"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
