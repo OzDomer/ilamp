@@ -21,6 +21,11 @@
 
   --display: "Fraunces", "Iowan Old Style", Georgia, serif;
   --mono: "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+
+  /* vertical rhythm scales with the viewport so the whole panel fits
+     without scrolling, from a phone to a 1080p browser window */
+  --gap: clamp(10px, 2.2vh, 28px);
+  --slider-h: clamp(30px, 4.4vh, 44px);
 }
 
 * { box-sizing: border-box; }
@@ -51,11 +56,13 @@ body::before {
 .panel {
   position: relative;
   max-width: 440px;
+  min-height: 100dvh;
   margin: 0 auto;
-  padding: max(16px, env(safe-area-inset-top)) 20px max(32px, env(safe-area-inset-bottom));
+  padding: max(12px, env(safe-area-inset-top)) 20px max(16px, env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  justify-content: center; /* on a tall screen, sit in the middle rather than hug the top */
+  gap: var(--gap);
 }
 
 /* -- status line ---------------------------------------------------------- */
@@ -105,7 +112,7 @@ body::before {
   position: relative;
   display: grid;
   place-items: center;
-  padding: 28px 0 12px;
+  padding: clamp(6px, 1.5vh, 28px) 0 clamp(2px, 1vh, 12px);
 }
 
 /* the glow that bleeds into the page */
@@ -131,7 +138,7 @@ body::before {
   cursor: pointer;
   display: grid;
   place-items: center;
-  gap: 16px;
+  gap: clamp(8px, 1.5vh, 16px);
   color: inherit;
   font: inherit;
   -webkit-tap-highlight-color: transparent;
@@ -140,8 +147,8 @@ body::before {
 
 .lamp-face {
   display: block;
-  width: min(62vw, 250px);
-  height: min(62vw, 250px);
+  width: min(62vw, 250px, 25vh);
+  height: min(62vw, 250px, 25vh);
   border-radius: 50%;
   background: #262120;
   border: 1px solid var(--line);
@@ -240,7 +247,7 @@ body::before {
 .control {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: clamp(6px, 1.2vh, 12px);
   transition: opacity 300ms;
 }
 
@@ -253,7 +260,7 @@ body::before {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  font-size: 17px;
+  font-size: clamp(15px, 2vh, 17px);
   letter-spacing: 0.01em;
 }
 
@@ -269,7 +276,7 @@ input[type="range"] {
   appearance: none;
   -webkit-appearance: none;
   width: 100%;
-  height: 44px;
+  height: var(--slider-h);
   margin: 0;
   background: transparent;
   cursor: pointer;
@@ -320,7 +327,8 @@ input[type="range"]::-moz-range-thumb {
 .swatch {
   appearance: none;
   aspect-ratio: 1;
-  width: 100%;
+  width: min(100%, 44px);
+  justify-self: center;
   border-radius: 50%;
   border: 2px solid var(--line);
   background: var(--c, #000);
@@ -379,7 +387,7 @@ input[type="range"]::-moz-range-thumb {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 999px;
-  padding: 12px 8px;
+  padding: clamp(7px, 1.3vh, 12px) 8px;
   cursor: pointer;
   transition: color 200ms, border-color 200ms, background 200ms, box-shadow 200ms;
   -webkit-tap-highlight-color: transparent;
@@ -443,9 +451,13 @@ input[type="range"]::-moz-range-thumb {
 .sun-row {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 14px;
+  grid-template-rows: auto auto;
+  column-gap: 14px;
+  row-gap: 2px;
   align-items: center;
 }
+
+.sun-row .toggle { grid-row: span 2; }
 
 .toggle {
   appearance: none;
@@ -455,7 +467,7 @@ input[type="range"]::-moz-range-thumb {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 999px;
-  padding: 12px 20px;
+  padding: clamp(8px, 1.3vh, 12px) 20px;
   cursor: pointer;
   transition: color 200ms, border-color 200ms, background 200ms, box-shadow 200ms;
   -webkit-tap-highlight-color: transparent;
