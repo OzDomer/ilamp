@@ -12,11 +12,12 @@ dependencies = ["bleak>=0.21"]
 [project.optional-dependencies]
 dev = ["pytest", "ruff", "httpx2"]  # httpx2: what Starlette's TestClient uses
 hub = ["fastapi", "uvicorn", "websockets"]
+clap = ["sounddevice", "numpy", "websockets"]
 
-# ilamp/ is the library, hub/ the server. tests/ and examples/ stay in
-# the repo but don't get installed as packages.
+# ilamp/ is the library, hub/ the server, clap/ the clap detector. tests/
+# and examples/ stay in the repo but don't get installed as packages.
 [tool.setuptools]
-packages = ["ilamp", "hub"]
+packages = ["ilamp", "hub", "clap"]
 
 [tool.setuptools.package-data]
 hub = ["static/*"]  # the web UI ships with the package
