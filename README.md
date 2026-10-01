@@ -41,8 +41,6 @@ Close the phone app first. The lamp accepts one controller at a time.
 
 ## How I reverse-engineered it
 
-> **Draft. Rewrite this in your own words.**
-
 1. **Explored the lamp over BLE** with Python + [bleak](https://github.com/hbldh/bleak). It exposed two vendor-specific characteristics (`0x8877` and `0x8888`) and a leftover `"LE Sample Device"` name, a sign the firmware was built from vendor example code.
 2. **Tried to read the app.** I decompiled the Android APK with jadx. It confirmed the right UUIDs and an Actions Semiconductor chip (the "iBluz" SDK), but the method bodies were hollowed out, so the protocol wasn't readable.
 3. **Watched the traffic instead.** I captured the iPhone app's Bluetooth traffic (Apple's Bluetooth logging profile + sysdiagnose) while doing one slow, deliberate action at a time: off, on, red, green, blue, dim, bright. Then I decoded the packets in Wireshark by comparing what stayed fixed against what changed.
