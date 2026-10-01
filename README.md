@@ -97,7 +97,7 @@ All traffic goes through two characteristics:
 | Mode | `02 03 04 [mode]` |
 | Read state | `02 02 02 00 00 00 00 00 00` |
 
-**Modes**: `00` Normal · `01` Pulse · `03` Rhythm (follows audio streamed to the speaker) · `04` Rainbow · `06` Candlelight · `07` Alert (hidden; it is what the app sends when you set a sleep timer, so it is probably the sleep visual). Other values are ignored.
+**Modes**: `00` Normal · `01` Pulse · `03` Rhythm (follows audio streamed to the speaker) · `04` Rainbow · `06` Candlelight · `07` Sleep (not in the app's mode list; it is what the app sends when you set a sleep timer). Other values are ignored.
 
 **State reports** (`02 04 01 …` after a change, `02 02 02 …` in answer to a read) carry `[power] [brightness] [R] [G] [B] [mode]`. The lamp **only reports changes**, so a command that changes nothing gets no reply.
 

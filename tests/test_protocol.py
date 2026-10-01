@@ -207,3 +207,10 @@ def test_sun_level_is_0_to_16():
     assert p.sun_level(0) and p.sun_level(16)
     with pytest.raises(ValueError):
         p.sun_level(17)
+
+
+def test_mode_07_is_sleep_and_alert_is_its_old_name():
+    assert Mode(0x07) is Mode.SLEEP
+    assert Mode.ALERT is Mode.SLEEP  # alias: old code keeps working
+    assert Mode(0x07).name == "SLEEP"
+    assert [m.name for m in Mode].count("ALERT") == 0  # aliases don't show up in iteration

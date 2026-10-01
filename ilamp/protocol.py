@@ -108,7 +108,10 @@ class Mode(IntEnum):
     RHYTHM = 0x03  # follows audio streamed to the lamp's speaker
     RAINBOW = 0x04  # cycles through colors
     CANDLELIGHT = 0x06  # flickers
-    ALERT = 0x07  # slow fade, blinks 3x - hidden, not in the app
+    SLEEP = (
+        0x07  # slow fade, blinks 3x. Not in the app's mode list; it sends it for the sleep timer
+    )
+    ALERT = 0x07  # the old name for SLEEP, from before the capture explained it (an alias)
 
 
 # ---------------------------------------------------------------------------

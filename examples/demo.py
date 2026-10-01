@@ -44,7 +44,7 @@ async def main() -> None:
         print(f"  ring: {lamp.sun}")
         print(f"  rgb:  {lamp.state}")
 
-        for mode in (Mode.RAINBOW, Mode.PULSE, Mode.CANDLELIGHT, Mode.ALERT):
+        for mode in (Mode.RAINBOW, Mode.PULSE, Mode.CANDLELIGHT, Mode.SLEEP):
             print(f"mode: {mode.name.lower()}...")
             await lamp.mode(mode)
             await asyncio.sleep(5)

@@ -9,7 +9,7 @@
  *
  * The types below mirror hub/messages.py. Change one, change the other.
  */
-const MODE_NAMES = ["normal", "pulse", "rhythm", "rainbow", "candlelight", "alert"];
+const MODE_NAMES = ["normal", "pulse", "rhythm", "rainbow", "candlelight", "sleep"];
 // --- the page ------------------------------------------------------------------
 function $(selector) {
     const element = document.querySelector(selector);

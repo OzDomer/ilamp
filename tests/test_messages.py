@@ -93,3 +93,9 @@ def test_sun_level_request_is_0_to_16():
     assert isinstance(req, SunLevelRequest) and req.value == 16
     with pytest.raises(ValueError, match="value"):
         parse_request('{"type": "sun_level", "value": 17}')
+
+
+def test_sleep_is_a_mode_name_and_alert_is_not_advertised():
+    assert parse_request('{"type": "mode", "mode": "sleep"}').mode is Mode.SLEEP
+    with pytest.raises(ValueError, match="sleep"):
+        parse_request('{"type": "mode", "mode": "disco"}')

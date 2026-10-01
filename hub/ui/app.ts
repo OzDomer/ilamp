@@ -16,8 +16,8 @@ export {};
 
 // --- the protocol, as types ----------------------------------------------------
 
-type ModeName = "normal" | "pulse" | "rhythm" | "rainbow" | "candlelight" | "alert";
-const MODE_NAMES: readonly ModeName[] = ["normal", "pulse", "rhythm", "rainbow", "candlelight", "alert"];
+type ModeName = "normal" | "pulse" | "rhythm" | "rainbow" | "candlelight" | "sleep";
+const MODE_NAMES: readonly ModeName[] = ["normal", "pulse", "rhythm", "rainbow", "candlelight", "sleep"];
 
 type Rgb = [number, number, number];
 
