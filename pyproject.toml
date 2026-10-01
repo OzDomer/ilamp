@@ -1,0 +1,12 @@
+[project]
+name = "ilamp"
+version = "0.1.0"
+description = "Control an old i_Lamp Bluetooth speaker lamp from Python (reverse-engineered protocol)"
+requires-python = ">=3.10"
+dependencies = ["bleak>=0.21"]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
