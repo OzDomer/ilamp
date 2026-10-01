@@ -131,7 +131,7 @@ def test_the_ui_is_served_at_the_root():
 def test_the_ring_is_controlled_and_reported_over_the_socket():
     with running_app() as (client, _, fakes), client.websocket_connect("/ws") as ws:
         state = connected_state(ws)
-        assert state["sun"] == {"on": False, "temperature": 128}
+        assert state["sun"] == {"on": False, "temperature": 128, "level": 16}
         ws.send_json({"id": 1, "type": "sun", "on": True})
         msgs = [ws.receive_json() for _ in range(3)]  # ack + ring state + rgb-off state
         assert {"type": "ack", "id": 1} in msgs
@@ -141,3 +141,12 @@ def test_the_ring_is_controlled_and_reported_over_the_socket():
         ws.send_json({"id": 2, "type": "sun_temperature", "value": 0})
         msgs = [ws.receive_json() for _ in range(2)]
         assert next(m for m in msgs if m["type"] == "state")["sun"]["temperature"] == 0
+
+
+def test_ring_level_over_the_socket():
+    with running_app() as (client, _, fakes), client.websocket_connect("/ws") as ws:
+        connected_state(ws)
+        ws.send_json({"id": 3, "type": "sun_level", "value": 2})
+        msgs = [ws.receive_json() for _ in range(2)]
+        assert next(m for m in msgs if m["type"] == "state")["sun"]["level"] == 2
+        assert fakes[0].sun["level"] == 2

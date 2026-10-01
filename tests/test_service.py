@@ -235,3 +235,17 @@ def test_the_ring_is_part_of_the_status_and_its_changes_are_broadcast():
             await service.stop()
 
     run(go())
+
+
+def test_ring_level_goes_through_the_service():
+    async def go():
+        service, _, _ = make_service()
+        await service.start()
+        try:
+            await wait_until(lambda: service.status.connected)
+            sun = await service.sun_level(8)
+            assert sun.level == 8 and service.status.sun.level == 8
+        finally:
+            await service.stop()
+
+    run(go())

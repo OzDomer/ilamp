@@ -28,6 +28,8 @@ const colorValue = $("#colorValue");
 const modeButtons = $("#modes");
 const sunToggle = $("#sunToggle");
 const sunTempInput = $("#sunTemp");
+const sunLevelInput = $("#sunLevel");
+const sunLevelValue = $("#sunLevelValue");
 const toast = $("#toast");
 let socket = null;
 let nextId = 1;
@@ -142,7 +144,7 @@ function render(connected, lamp, sun) {
     const hex = toHex(lamp.rgb);
     if (sunOn) {
         panel.style.setProperty("--lamp-color", sunColor(sun?.temperature ?? 128));
-        panel.style.setProperty("--lamp-level", "1");
+        panel.style.setProperty("--lamp-level", ((sun?.level ?? 16) / 16).toFixed(3));
         panel.dataset["on"] = "true";
         panel.dataset["mode"] = "sun";
         lampLabel.textContent = "room light";
@@ -167,6 +169,11 @@ function render(connected, lamp, sun) {
     sunToggle.setAttribute("aria-pressed", String(sunOn));
     if (sun?.temperature != null && !held.has(sunTempInput)) {
         sunTempInput.value = String(sun.temperature);
+    }
+    if (sun !== null) {
+        if (!held.has(sunLevelInput))
+            sunLevelInput.value = String(sun.level);
+        sunLevelValue.textContent = String(sun.level);
     }
 }
 function setLink(kind, text) {
@@ -215,9 +222,14 @@ const sendSunTemperature = latestOnly((value) => request({ type: "sun_temperatur
 sunTempInput.addEventListener("input", () => {
     sendSunTemperature(Number(sunTempInput.value));
 });
+const sendSunLevel = latestOnly((value) => request({ type: "sun_level", value }));
+sunLevelInput.addEventListener("input", () => {
+    sunLevelValue.textContent = sunLevelInput.value;
+    sendSunLevel(Number(sunLevelInput.value));
+});
 // While a finger is on a slider or the picker is open, pushed states
 // update the numbers but leave the control where the user put it.
-for (const slider of [brightnessInput, sunTempInput]) {
+for (const slider of [brightnessInput, sunTempInput, sunLevelInput]) {
     slider.addEventListener("pointerdown", () => held.add(slider));
     for (const type of ["pointerup", "pointercancel"]) {
         slider.addEventListener(type, () => held.delete(slider));

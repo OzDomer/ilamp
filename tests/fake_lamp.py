@@ -10,7 +10,7 @@ It copies every behavior we observed in the real lamp:
   - a command that changes nothing           -> no reply    (mode 00 at the start)
   - an unknown mode                          -> ignored     (modes 02, 05, 08+)
   - read_state                               -> state answer
-  - the sun ring (group 01): on/off, temperature, level 1-16; switching one
+  - the sun ring (group 01): on/off, temperature, level 0-16; switching one
     light on turns the other off WITHOUT a report, like the real lamp
 
 The timings are shrunk (watchdog 0.3s instead of ~14s) so tests run fast.
@@ -173,7 +173,7 @@ class FakeLamp:
         elif cmd == p.SunCmd.TEMPERATURE and args[0] != self.sun["temperature"]:
             self.sun["temperature"] = args[0]
             self._reply(sun_message(p.Op.REPORT, p.SunCmd.TEMPERATURE, [args[0]]))
-        elif cmd == p.SunCmd.LEVEL and 1 <= args[0] <= 16:  # larger values are ignored
+        elif cmd == p.SunCmd.LEVEL and 0 <= args[0] <= 16:  # larger values are ignored
             self.sun["level"] = args[0]
             self._reply(sun_message(p.Op.REPORT, p.SunCmd.POWER, [self.sun["power"], args[0]]))
 

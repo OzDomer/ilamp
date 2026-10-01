@@ -29,6 +29,7 @@ from .messages import (
     PowerRequest,
     RefreshRequest,
     Request,
+    SunLevelRequest,
     SunRequest,
     SunTemperatureRequest,
 )
@@ -120,3 +121,5 @@ async def _dispatch(service: LampService, request: Request) -> None:
             await service.sun(request.on)
         case SunTemperatureRequest():
             await service.sun_temperature(request.value)
+        case SunLevelRequest():
+            await service.sun_level(request.value)

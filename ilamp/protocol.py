@@ -91,8 +91,8 @@ class SunCmd(IntEnum):
     """Commands of the sun ring (Group.SUN)."""
 
     POWER = 0x01  # WRITE [Power]; REPORT [power, level]
-    LEVEL = 0x02  # WRITE [value]; a READ of it answers [power, level]. Meaning unconfirmed.
-    TEMPERATURE = 0x03  # WRITE/REPORT [0-255], warm <-> cool. Which end is which: sun_check
+    LEVEL = 0x02  # WRITE [0-16] brightness; a READ of it answers [power, level]
+    TEMPERATURE = 0x03  # WRITE/REPORT [0-255]: 0 warm (yellowish) .. 255 cold white
 
 
 class Power(IntEnum):
@@ -186,9 +186,13 @@ def sun_temperature(value: int) -> bytes:
     return wrap(COMMAND, inner(Group.SUN, Op.WRITE, SunCmd.TEMPERATURE, [value]))
 
 
+SUN_LEVEL_MAX = 16  # the lamp ignores anything above (confirmed by a sweep on the real lamp)
+
+
 def sun_level(value: int) -> bytes:
-    """The ring's 'level' (the app re-applies 0x10; what it does is unconfirmed)."""
-    _check_byte("level", value)
+    """The ring's brightness, 0-16. 17 steps, and very visible ones."""
+    if not 0 <= value <= SUN_LEVEL_MAX:
+        raise ValueError(f"level must be 0-{SUN_LEVEL_MAX}, got {value}")
     return wrap(COMMAND, inner(Group.SUN, Op.WRITE, SunCmd.LEVEL, [value]))
 
 
@@ -262,7 +266,7 @@ class SunState:
     """The ring's full state, merged from the lamp's partial updates."""
 
     on: bool
-    level: int
+    level: int  # brightness, 0-16
     temperature: int | None  # 0 warm .. 255 cold; None until the lamp has said
 
     def apply(self, update: SunUpdate) -> "SunState":

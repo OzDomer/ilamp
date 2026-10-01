@@ -232,3 +232,15 @@ def test_sun_off_is_confirmed():
             assert sun.on is False and fakes[0].sun["power"] == 2
 
     run(go())
+
+
+def test_sun_level_is_confirmed():
+    async def go():
+        lamp, fakes = make_lamp()
+        async with lamp:
+            sun = await lamp.sun_level(4)
+            assert sun.level == 4 and fakes[0].sun["level"] == 4
+            sun = await lamp.sun_level(0)
+            assert sun.level == 0
+
+    run(go())

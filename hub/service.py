@@ -138,6 +138,9 @@ class LampService:
     async def sun_temperature(self, value: int) -> SunState:
         return await self._require_lamp().sun_temperature(value)
 
+    async def sun_level(self, value: int) -> SunState:
+        return await self._require_lamp().sun_level(value)
+
     def _perceived(self, state: LampState) -> LampState:
         """The lamp's state with the color scale undone: what the user asked for."""
         rgb = tuple(

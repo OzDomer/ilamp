@@ -207,6 +207,11 @@ class Lamp:
             packet, lambda s: s.temperature == value, f"sun temperature {value}"
         )
 
+    async def sun_level(self, value: int) -> SunState:
+        """The ring's brightness, 0-16."""
+        packet = protocol.sun_level(value)
+        return await self._sun_command(packet, lambda s: s.level == value, f"sun level {value}")
+
     # -- internals ------------------------------------------------------------
 
     def _apply_scale(self, r: int, g: int, b: int) -> tuple[int, int, int]:

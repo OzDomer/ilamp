@@ -11,12 +11,13 @@ it in the ack or error so the client can match answers to requests:
     {"id": 5, "type": "refresh"}
     {"id": 6, "type": "sun", "on": true}                 the white ring
     {"id": 7, "type": "sun_temperature", "value": 0}     0 warm .. 255 cold
+    {"id": 8, "type": "sun_level", "value": 16}          brightness, 0-16
 
 Hub -> client:
 
     {"type": "state", "connected": true,
      "lamp": {"on": true, "brightness": 180, "rgb": [255, 120, 40], "mode": "normal"},
-     "sun": {"on": false, "temperature": 128}}
+     "sun": {"on": false, "temperature": 128, "level": 16}}
     {"type": "state", "connected": false, "lamp": null}
     {"type": "ack", "id": 2}
     {"type": "error", "id": 4, "message": "..."}
@@ -33,6 +34,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field, TypeAdapter, ValidationError, field_validator
 
 from ilamp import Mode
+from ilamp.protocol import SUN_LEVEL_MAX
 
 from .service import HubStatus
 
@@ -94,6 +96,11 @@ class SunTemperatureRequest(_Request):
     value: Byte  # 0 warm .. 255 cold
 
 
+class SunLevelRequest(_Request):
+    type: Literal["sun_level"]
+    value: Annotated[int, Field(ge=0, le=SUN_LEVEL_MAX)]  # brightness
+
+
 Request = (
     PowerRequest
     | ColorRequest
@@ -102,6 +109,7 @@ Request = (
     | RefreshRequest
     | SunRequest
     | SunTemperatureRequest
+    | SunLevelRequest
 )
 
 # `type` picks the model, so a wrong `type` says so instead of failing all five.
@@ -150,7 +158,9 @@ def status_message(status: HubStatus) -> dict:
             "rgb": list(lamp.rgb),
             "mode": _mode_name(lamp.mode),
         },
-        "sun": None if sun is None else {"on": sun.on, "temperature": sun.temperature},
+        "sun": None
+        if sun is None
+        else {"on": sun.on, "temperature": sun.temperature, "level": sun.level},
     }
 
 

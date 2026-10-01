@@ -54,7 +54,10 @@
 
     <!-- The white ring: real room light. The lamp runs it OR the RGB light, never both. -->
     <section class="control">
-      <div class="control-head"><span>Room light</span></div>
+      <div class="control-head">
+        <span>Room light</span>
+        <output id="sunLevelValue" for="sunLevel">—</output>
+      </div>
       <div class="sun-row">
         <button class="toggle" id="sunToggle" type="button" aria-pressed="false">Ring</button>
         <div class="sun-temp">
@@ -62,6 +65,7 @@
           <div class="temp-scale" aria-hidden="true"><span>warm</span><span>cold</span></div>
         </div>
       </div>
+      <input id="sunLevel" type="range" min="0" max="16" step="1" value="16" aria-label="Room light brightness">
     </section>
 
     <section class="control">

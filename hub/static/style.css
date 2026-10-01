@@ -500,3 +500,12 @@ input[type="range"]::-moz-range-thumb {
 .panel[data-on="true"][data-mode="sun"] .lamp-face { animation: none; }
 
 .panel > :nth-child(6) { animation-delay: 320ms; }
+
+/* the ring's brightness slider: a plain white fill, since the ring has no color of its own */
+#sunLevel::-webkit-slider-runnable-track {
+  background: linear-gradient(90deg, #2a2522, #f3ead9);
+}
+
+#sunLevel::-moz-range-track {
+  background: linear-gradient(90deg, #2a2522, #f3ead9);
+}

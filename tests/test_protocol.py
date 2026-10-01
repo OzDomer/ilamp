@@ -200,3 +200,10 @@ def test_read_sun_temperature_matches_capture():
     assert p.read_sun_temperature() == hx("01fe0000 5181 1800 0000000000000000 0d07010203000e00")
     answer = hx("01fe0000 4181 1700 0000000000000000 0d070102039c0e")
     assert p.parse_sun(answer) == SunUpdate(on=None, level=None, temperature=0x9C)
+
+
+def test_sun_level_is_0_to_16():
+    # Confirmed on the lamp 2026-10-02: 0-16 are accepted, 17+ silently ignored.
+    assert p.sun_level(0) and p.sun_level(16)
+    with pytest.raises(ValueError):
+        p.sun_level(17)

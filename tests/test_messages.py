@@ -10,6 +10,7 @@ import pytest
 from hub.messages import (
     ColorRequest,
     ModeRequest,
+    SunLevelRequest,
     SunRequest,
     SunTemperatureRequest,
     parse_request,
@@ -82,6 +83,13 @@ def test_status_message_carries_the_ring():
     state = LampState(on=False, brightness=180, rgb=(255, 120, 40), mode=Mode.NORMAL)
     sun = SunState(on=True, level=16, temperature=40)
     msg = status_message(HubStatus(connected=True, lamp=state, sun=sun))
-    assert msg["sun"] == {"on": True, "temperature": 40}
+    assert msg["sun"] == {"on": True, "temperature": 40, "level": 16}
     assert msg["lamp"]["on"] is False
     assert status_message(HubStatus(connected=False, lamp=None, sun=None))["sun"] is None
+
+
+def test_sun_level_request_is_0_to_16():
+    req = parse_request('{"type": "sun_level", "value": 16}')
+    assert isinstance(req, SunLevelRequest) and req.value == 16
+    with pytest.raises(ValueError, match="value"):
+        parse_request('{"type": "sun_level", "value": 17}')
