@@ -175,8 +175,8 @@ class LampService:
         failures = 0
         while True:
             self._dropped.clear()
-            lamp = self._new_lamp()
             try:
+                lamp = self._new_lamp()
                 await lamp.connect()
             except Exception as e:  # noqa: BLE001 - whatever the reason, we retry
                 delay = self._delays[min(failures, len(self._delays) - 1)]
@@ -186,14 +186,17 @@ class LampService:
                 continue
 
             failures = 0
-            self._lamp = lamp
-            self._set_status(
-                HubStatus(connected=True, lamp=self._perceived(lamp.state), sun=lamp.sun)
-            )
-            log.info("Connected to the lamp: %s", lamp.state)
+            try:
+                self._lamp = lamp
+                self._set_status(
+                    HubStatus(connected=True, lamp=self._perceived(lamp.state), sun=lamp.sun)
+                )
+                log.info("Connected to the lamp: %s", lamp.state)
+                await self._dropped.wait()
+                log.warning("The lamp dropped the connection. Reconnecting.")
+            except Exception:
+                log.exception("Unexpected error in the lamp supervisor. Reconnecting.")
 
-            await self._dropped.wait()
-            log.warning("The lamp dropped the connection. Reconnecting.")
             await self._drop_lamp()
             self._set_status(HubStatus(connected=False, lamp=None))
             await asyncio.sleep(self._delays[0])

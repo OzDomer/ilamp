@@ -8,12 +8,14 @@ by itself when the lamp does.
 """
 
 import asyncio
+import logging
 
 import pytest
 
-from hub.service import LampUnavailableError
-from ilamp import CommandNotConfirmedError, Mode
-from tests.service_helpers import make_service, next_status, run, wait_until
+from hub.service import LampService, LampUnavailableError
+from ilamp import CommandNotConfirmedError, Lamp, Mode
+from tests.fake_lamp import factory_for
+from tests.service_helpers import FAST, make_service, next_status, run, wait_until
 
 
 def test_start_connects_and_knows_the_lamp_state():
@@ -272,6 +274,31 @@ def test_a_drop_while_a_command_waits_for_the_lock_is_reported_as_unavailable():
                 await first
             with pytest.raises(LampUnavailableError):
                 await second
+        finally:
+            await service.stop()
+
+    run(go())
+
+
+def test_the_supervisor_survives_an_unexpected_error_and_logs_it(caplog):
+    # Anything unexpected inside the supervisor (here: the lamp factory
+    # itself blowing up once) must not kill it silently. It logs and retries.
+    attempts = {"count": 0}
+
+    def flaky_lamp_factory(**kwargs):
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            raise TypeError("bad factory")
+        return Lamp(client_factory=factory_for([]), **FAST, **kwargs)
+
+    async def go():
+        service = LampService(lamp_factory=flaky_lamp_factory, retry_delays=(0.05,))
+        await service.start()
+        try:
+            with caplog.at_level(logging.WARNING, logger="hub.service"):
+                await wait_until(lambda: service.status.connected)
+            assert attempts["count"] == 2
+            assert any("bad factory" in r.getMessage() for r in caplog.records)
         finally:
             await service.stop()
 
