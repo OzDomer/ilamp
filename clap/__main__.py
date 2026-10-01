@@ -13,10 +13,12 @@ and see what each does to the numbers.
 
 import argparse
 import asyncio
+import logging
 import os
 import sys
 from dataclasses import replace
 
+from .client import HubClient
 from .detector import Detector, Settings
 from .mic import Microphone, find_device, list_devices
 
@@ -63,8 +65,39 @@ async def monitor(device: int | None, settings: Settings) -> None:
                 peak_since_print = 0.0
 
 
+async def listen(device: int | None, settings: Settings, hub_url: str) -> None:
+    """The real thing: a double clap toggles the lamp through the hub."""
+    client = HubClient(hub_url)
+    hub_task = asyncio.create_task(client.run())
+    detector = Detector(settings)
+
+    async def toggle() -> None:
+        try:
+            await client.toggle()
+            log.info("Double clap: lamp toggled.")
+        except (ConnectionError, RuntimeError, TimeoutError) as e:
+            log.warning("Double clap, but the hub said: %s", e)
+
+    try:
+        async with Microphone(device, settings.sample_rate, settings.block_ms) as mic:
+            log.info("Listening. Clap twice to toggle the lamp.")
+            async for block in mic.blocks():
+                for event in detector.feed(block):
+                    if event == "double":
+                        asyncio.create_task(toggle())  # don't hold up the audio loop
+    finally:
+        hub_task.cancel()
+        await asyncio.gather(hub_task, return_exceptions=True)
+
+
+log = logging.getLogger("clap")
+
+
 def main() -> None:
     args = parse_args()
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+    )
     if args.list_devices:
         for index, name in list_devices():
             print(f"{index:3d}  {name}")
@@ -77,7 +110,10 @@ def main() -> None:
         except KeyboardInterrupt:
             print("\nbye")
         return
-    raise SystemExit("The hub client comes in the next step; use --monitor for now.")
+    try:
+        asyncio.run(listen(device, settings, args.hub))
+    except KeyboardInterrupt:
+        print("bye")
 
 
 main()
