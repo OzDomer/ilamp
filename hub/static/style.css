@@ -181,6 +181,31 @@ body::before {
   pointer-events: none;
 }
 
+/* the one control that turns everything off; the disc only swaps lights */
+.off {
+  appearance: none;
+  margin-top: clamp(6px, 1.2vh, 12px);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: color 200ms, border-color 200ms, opacity 200ms;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.off:hover { color: var(--ink); border-color: var(--ink); }
+
+.panel[data-on="false"] .off {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
 .lamp-label {
   font-family: var(--mono);
   font-size: 13px;

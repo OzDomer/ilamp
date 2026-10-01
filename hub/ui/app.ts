@@ -62,6 +62,7 @@ function $<T extends Element>(selector: string): T {
 const panel = $<HTMLElement>(".panel");
 const statusText = $<HTMLElement>("#status");
 const lampButton = $<HTMLButtonElement>("#lamp");
+const offButton = $<HTMLButtonElement>("#off");
 const lampLabel = $<HTMLElement>("#lampLabel");
 const brightnessInput = $<HTMLInputElement>("#brightness");
 const brightnessValue = $<HTMLOutputElement>("#brightnessValue");
@@ -187,6 +188,11 @@ function latestOnly<T>(send: (value: T) => Promise<void>): (value: T) => void {
 /** Controls the user is holding right now; a pushed state must not yank them. */
 const held = new Set<HTMLInputElement>();
 
+/** The latest pushed state, for the controls that need to know what is on. */
+let current: { lamp: LampJson | null; sun: SunJson | null } = { lamp: null, sun: null };
+/** Which light was on most recently, so "on" from all-off brings back the right one. */
+let lastLight: "rgb" | "sun" = "rgb";
+
 function render(connected: boolean, lamp: LampJson | null, sun: SunJson | null): void {
   if (!connected || lamp === null) {
     setLink("lamp", "lamp away, reconnecting…");
@@ -195,9 +201,12 @@ function render(connected: boolean, lamp: LampJson | null, sun: SunJson | null):
     return;
   }
   setLink("connected", "connected");
+  current = { lamp, sun };
 
   // The disc shows whichever light is on. The lamp never runs both.
   const sunOn = sun?.on ?? false;
+  if (sunOn) lastLight = "sun";
+  else if (lamp.on) lastLight = "rgb";
   const hex = toHex(lamp.rgb);
   if (sunOn) {
     panel.style.setProperty("--lamp-color", sunColor(sun?.temperature ?? 128));
@@ -212,8 +221,6 @@ function render(connected: boolean, lamp: LampJson | null, sun: SunJson | null):
     panel.dataset["mode"] = lamp.mode;
     lampLabel.textContent = lamp.on ? lamp.mode : "off";
   }
-
-  lampButton.setAttribute("aria-pressed", String(lamp.on));
 
   if (!held.has(brightnessInput)) brightnessInput.value = String(lamp.brightness);
   brightnessValue.textContent = String(lamp.brightness);
@@ -254,11 +261,22 @@ function report(err: unknown): void {
   showToast(err instanceof Error ? err.message : String(err));
 }
 
+// The disc swaps between the two lights; it never turns the lamp off.
+// The lamp itself switches the other light off when one comes on.
 lampButton.addEventListener("click", () => {
-  // Tapping the disc toggles the RGB light. If the ring is on, the lamp
-  // switches it off by itself when the RGB light comes on.
-  const isOn = lampButton.getAttribute("aria-pressed") === "true";
-  request({ type: "power", on: !isOn }).catch(report);
+  const sunOn = current.sun?.on ?? false;
+  const rgbOn = current.lamp?.on ?? false;
+  let next: HubRequest;
+  if (sunOn) next = { type: "power", on: true };
+  else if (rgbOn) next = { type: "sun", on: true };
+  else next = lastLight === "sun" ? { type: "sun", on: true } : { type: "power", on: true };
+  request(next).catch(report);
+});
+
+// The only control that turns the lamp off: whichever light is on, off it goes.
+offButton.addEventListener("click", () => {
+  if (current.sun?.on) request({ type: "sun", on: false }).catch(report);
+  else if (current.lamp?.on) request({ type: "power", on: false }).catch(report);
 });
 
 const sendBrightness = latestOnly((value: number) => request({ type: "brightness", value }));
