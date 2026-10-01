@@ -27,16 +27,17 @@ Every command is **confirmed**: it waits for the lamp to report the new state, a
 - Two lights: the RGB mood light (power, color, brightness, all modes, including a hidden mode the official app never exposed) and the white ring for actual room light (power, warm/cold temperature, 17-step brightness)
 - Live state: `lamp.state` and `lamp.sun` are always what the lamp itself last reported
 - A **hub**: one server owns the lamp, any number of browsers control it over a WebSocket, and every screen shows what the lamp actually did. Works from a phone on the same WiFi
+- A **clap detector**: double clap near the PC's microphone to toggle the lamp. It is just another client of the hub
 - Optional color correction for the RGB light's cyan-leaning white
 - Works alongside the speaker: a phone can stream music to the lamp while this controls the lights
-- 84 tests, no hardware needed: protocol tests use bytes from real captures, and everything else runs against a simulated lamp
+- 104 tests, no hardware needed: protocol tests use bytes from real captures, the clap detector is tested on synthetic audio, and everything else runs against a simulated lamp
 
 ## Install
 
 ```
 git clone <this repo>
 cd ilamp
-pip install -e .[dev,hub]
+pip install -e .[dev,hub,clap]
 python -m pytest
 python -m examples.demo     # needs the lamp nearby
 ```
@@ -56,6 +57,17 @@ Options: `--host`, `--port`, `--lamp-name`, `--color-scale R,G,B` (also as `ILAM
 The server listens on all interfaces with no login: anyone on the WiFi can control the lamp.
 
 The page's JavaScript is compiled from TypeScript (`hub/ui/app.ts`); the compiled file is committed, so running the hub needs no Node. To change the UI: `npm install`, edit, `npm run build`.
+
+## The clap detector
+
+```
+python -m clap --monitor     watch the levels and events; tune in your room
+python -m clap               double clap -> toggle the lamp (the hub must be running)
+```
+
+A clap is a sharp spike from quiet that dies fast. The detector checks four things per 20 ms block: the peak is far above the room's background level and above a floor; the blocks just before were quiet; the level is back down within ~80 ms (speech, music and a vacuum cleaner fail this); and nothing counts for 150 ms after a clap (its echo). Two claps 0.2–0.8 s apart make a double; single claps are ignored on purpose, too many things sound like one. Sustained loud sound (the lamp's own speaker) suspends detection until it is quiet again.
+
+`--device` picks a microphone (`--list-devices`); `--floor`, `--onset-ratio` and `--loud` adjust the thresholds. The detector never touches the lamp: it sends the hub the same request the page's Off control would.
 
 ## How I reverse-engineered it
 
@@ -128,6 +140,9 @@ hub/service.py      the one owner of the lamp: reconnects, broadcasts state (no 
 hub/messages.py     the JSON spoken over the WebSocket, validated with Pydantic
 hub/server.py       FastAPI: one /ws endpoint and the static UI
 hub/ui/app.ts       the page's TypeScript; compiled into hub/static/
+clap/detector.py    audio blocks in, clap events out (no microphone, no network)
+clap/mic.py         the microphone as an async stream of blocks
+clap/client.py      one more WebSocket client of the hub: double clap -> toggle
 tests/fake_lamp.py  a simulated lamp that behaves like the real one, quirks included
 examples/           demo.py, session_check.py and sun_check.py for real hardware
 docs/adr/           why things are the way they are
