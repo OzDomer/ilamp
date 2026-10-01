@@ -13,10 +13,10 @@ from ilamp import CommandNotConfirmedError, Lamp, Mode
 from tests.fake_lamp import FakeLamp, factory_for
 
 
-def make_lamp(**kwargs):
+def make_lamp(fake_options: dict | None = None, **kwargs):
     lamps: list[FakeLamp] = []
     options = {"heartbeat_interval": 0.05, "confirm_timeout": 0.3, **kwargs}
-    lamp = Lamp(client_factory=factory_for(lamps), **options)
+    lamp = Lamp(client_factory=factory_for(lamps, **(fake_options or {})), **options)
     return lamp, lamps
 
 
@@ -104,4 +104,35 @@ def test_color_scale_is_applied():
             state = await lamp.color(200, 200, 200)
             assert state.rgb == (200, 100, 50)
             assert fakes[0].state["rgb"] == [200, 100, 50]
+    run(go())
+
+
+def test_failed_connect_tears_down_the_session():
+    # Python skips __aexit__ when __aenter__ raises. So if refresh() fails
+    # inside connect(), connect() itself must close the session, or the
+    # heartbeat task and the Bluetooth link are left running with no owner.
+    async def go():
+        lamp, fakes = make_lamp(fake_options={"answer_reads": False})
+        with pytest.raises(CommandNotConfirmedError):
+            async with lamp:
+                pass
+        fake = fakes[0]
+        assert not fake.is_connected
+        beats = fake.heartbeats
+        await asyncio.sleep(0.2)
+        assert fake.heartbeats == beats  # the heartbeat task is really gone
+    run(go())
+
+
+def test_concurrent_commands_do_not_clobber_each_other():
+    # color() keeps the current brightness and brightness() keeps the
+    # current color, both read from lamp.state. If they run at the same
+    # time, both read the OLD state before either is confirmed, and the
+    # second command sends the first one's old value back.
+    async def go():
+        lamp, fakes = make_lamp()
+        async with lamp:
+            await asyncio.gather(lamp.color(255, 0, 0), lamp.brightness(80))
+            assert lamp.state.rgb == (255, 0, 0)
+            assert lamp.state.brightness == 80
     run(go())

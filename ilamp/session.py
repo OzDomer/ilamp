@@ -113,16 +113,26 @@ class Session:
 
     async def open(self) -> None:
         """Connect, subscribe, say hello, handshake, start the heartbeat."""
+        self._closing = False
         self._client = await self._factory(self.name, self._handle_disconnect)
         await self._client.connect()
-        # Subscribe BEFORE sending anything, so no reply is missed.
-        await self._client.start_notify(NOTIFY_UUID, self._handle_notification)
+        try:
+            # Subscribe BEFORE sending anything, so no reply is missed.
+            await self._client.start_notify(NOTIFY_UUID, self._handle_notification)
 
-        # The exact opening the app uses. Order matters: a command sent
-        # before this gets us kicked off within half a second.
-        await self._write(protocol.HELLO)
-        for packet in protocol.handshake():
-            await self._write(packet)
+            # The exact opening the app uses. Order matters: a command sent
+            # before this gets us kicked off within half a second.
+            await self._write(protocol.HELLO)
+            for packet in protocol.handshake():
+                await self._write(packet)
+        except BaseException:
+            # We're connected but the session never opened. Nobody else will
+            # hang up for us: `async with` skips __aexit__ when __aenter__
+            # raises. Flag it as our own disconnect so it isn't reported as
+            # a drop, then let the original error through.
+            self._closing = True
+            await self._client.disconnect()
+            raise
 
         # From here on, the heartbeat keeps the lamp from hanging up.
         self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())

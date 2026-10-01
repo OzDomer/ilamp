@@ -36,9 +36,17 @@ def state_message(op: int, cmd: int, state: dict) -> bytes:
 
 
 class FakeLamp:
-    def __init__(self, on_disconnect=None, watchdog: float = 0.3):
+    def __init__(
+        self,
+        on_disconnect=None,
+        watchdog: float = 0.3,
+        answer_reads: bool = True,
+        fail_writes: bool = False,
+    ):
         self.on_disconnect = on_disconnect
         self.watchdog = watchdog
+        self.answer_reads = answer_reads  # False: a lamp whose read answers never arrive
+        self.fail_writes = fail_writes    # True: every write raises, like a dying link
         self.state = {"power": 1, "brightness": 255, "rgb": [255, 255, 255], "mode": 0}
         self.received: list[bytes] = []   # everything written to us, for assertions
         self.heartbeats = 0
@@ -60,7 +68,9 @@ class FakeLamp:
         self._watchdog_task = asyncio.create_task(self._watchdog_loop())
 
     async def disconnect(self):
-        self._drop(report=False)
+        # bleak fires disconnected_callback for EVERY disconnect, including
+        # ones we asked for. Session's _closing flag is what tells them apart.
+        self._drop(report=True)
 
     async def start_notify(self, uuid, callback):
         self._notify = callback
@@ -71,6 +81,8 @@ class FakeLamp:
     async def write_gatt_char(self, uuid, data, response=False):
         if not self._connected:
             raise RuntimeError("Not connected")
+        if self.fail_writes:
+            raise RuntimeError("Write failed")
         data = bytes(data)
         self.received.append(data)
         self._handle(data)
@@ -100,7 +112,8 @@ class FakeLamp:
     def _command(self, msg: bytes):
         op, cmd, args = msg[3], msg[4], msg[5:]
         if op == p.Op.READ and cmd == p.Cmd.STATE:
-            self._reply(state_message(p.Op.READ, p.Cmd.STATE, self.state))
+            if self.answer_reads:
+                self._reply(state_message(p.Op.READ, p.Cmd.STATE, self.state))
             return
         if op != p.Op.WRITE:
             return

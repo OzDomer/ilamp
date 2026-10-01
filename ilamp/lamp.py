@@ -16,6 +16,9 @@ What this layer adds:
   - It knows the lamp only reports CHANGES, so asking for the current
     state returns immediately instead of waiting forever.
   - lamp.state is always the lamp's latest self-reported state.
+  - ONE command at a time. Commands that fill in half their value from
+    lamp.state (color keeps brightness, brightness keeps color) would
+    otherwise read a stale state when run concurrently.
 """
 
 import asyncio
@@ -26,6 +29,11 @@ from .protocol import LampState, Mode
 from .session import Session
 
 CONFIRM_TIMEOUT = 2.0  # seconds to wait for the lamp to report a change
+
+# A plan turns the CURRENT state into (packet to send, "is it done yet?" test).
+# It's a function, not a value, so _command can call it inside the lock.
+Done = Callable[[LampState], bool]
+Plan = Callable[[LampState | None], tuple[bytes, Done]]
 
 
 class CommandNotConfirmedError(Exception):
@@ -60,13 +68,23 @@ class Lamp:
         # Commands waiting for confirmation: (condition, future) pairs.
         # When a state report arrives, every waiter whose condition is now
         # true gets resolved.
-        self._waiters: list[tuple[Callable[[LampState], bool], asyncio.Future]] = []
+        self._waiters: list[tuple[Done, asyncio.Future]] = []
+        # One exchange with the lamp at a time: read state -> build -> send
+        # -> confirmed. Without this, two concurrent commands both read the
+        # old state and the second one sends the first one's old value back.
+        self._command_lock = asyncio.Lock()
 
     # -- lifecycle ------------------------------------------------------------
 
     async def connect(self) -> None:
         await self._session.open()
-        await self.refresh()
+        try:
+            await self.refresh()
+        except BaseException:
+            # The session is open and heartbeating, but connect() failed.
+            # `async with` won't call __aexit__ for us, so close it here.
+            await self._session.close()
+            raise
 
     async def disconnect(self) -> None:
         await self._session.close()
@@ -91,69 +109,78 @@ class Lamp:
 
     async def refresh(self) -> LampState:
         """Ask the lamp for its full state and wait for the answer."""
-        waiter = self._wait_for(lambda s: True)
-        await self._session.send(protocol.read_state())
-        return await self._confirm(waiter, "read state")
+        async with self._command_lock:
+            waiter = self._wait_for(lambda s: True)
+            await self._session.send(protocol.read_state())
+            return await self._confirm(waiter, "read state")
 
     # -- commands -------------------------------------------------------------
 
     async def on(self) -> LampState:
-        return await self._command(protocol.power(True), lambda s: s.on, "power on")
+        return await self._command(self._fixed(protocol.power(True), lambda s: s.on), "power on")
 
     async def off(self) -> LampState:
-        return await self._command(protocol.power(False), lambda s: not s.on, "power off")
+        return await self._command(self._fixed(protocol.power(False), lambda s: not s.on), "power off")
 
     async def color(self, r: int, g: int, b: int, brightness: int | None = None) -> LampState:
         """
         Set the color, and optionally brightness (0-255). Without a
         brightness, the current one is kept - the lamp always takes both
-        together, so we fill in the missing one from lamp.state.
+        together, so we fill in the missing one from the current state.
         """
-        if brightness is None:
-            brightness = self._state.brightness if self._state else 255
         rgb = self._apply_scale(r, g, b)
-        return await self._command(
-            protocol.color(*rgb, brightness=brightness),
-            lambda s: s.rgb == rgb and s.brightness == brightness,
-            f"color {rgb} brightness {brightness}",
-        )
+
+        def plan(state: LampState | None) -> tuple[bytes, Done]:
+            keep = state.brightness if state else 255
+            wanted = keep if brightness is None else brightness
+            packet = protocol.color(*rgb, brightness=wanted)
+            return packet, lambda s: s.rgb == rgb and s.brightness == wanted
+
+        return await self._command(plan, f"color {rgb}")
 
     async def brightness(self, value: int) -> LampState:
         """Change brightness only, keeping the current color."""
-        r, g, b = self._state.rgb if self._state else (255, 255, 255)
-        return await self._command(
-            protocol.color(r, g, b, brightness=value),
-            lambda s: s.brightness == value,
-            f"brightness {value}",
-        )
+
+        def plan(state: LampState | None) -> tuple[bytes, Done]:
+            r, g, b = state.rgb if state else (255, 255, 255)
+            return protocol.color(r, g, b, brightness=value), lambda s: s.brightness == value
+
+        return await self._command(plan, f"brightness {value}")
 
     async def mode(self, m: Mode | int) -> LampState:
         """Switch light mode. Unknown values are rejected by the lamp -> error."""
-        return await self._command(protocol.mode(m), lambda s: s.mode == m, f"mode {m!r}")
+        return await self._command(self._fixed(protocol.mode(m), lambda s: s.mode == m), f"mode {m!r}")
 
     # -- internals ------------------------------------------------------------
 
     def _apply_scale(self, r: int, g: int, b: int) -> tuple[int, int, int]:
         return tuple(min(255, round(v * k)) for v, k in zip((r, g, b), self._scale))
 
-    async def _command(
-        self, packet: bytes, done: Callable[[LampState], bool], label: str
-    ) -> LampState:
+    @staticmethod
+    def _fixed(packet: bytes, done: Done) -> Plan:
+        """A plan for commands that don't depend on the current state."""
+        return lambda _state: (packet, done)
+
+    async def _command(self, plan: Plan, label: str) -> LampState:
         """
-        Send a command and wait until the lamp confirms it.
+        Build a command from the current state, send it, and wait until the
+        lamp confirms it. The whole thing happens under the command lock, so
+        the state the plan sees is the confirmed result of the previous one.
 
         The lamp only reports CHANGES. If the known state already satisfies
         the command, no report will come - so we send it (harmless) and
         return right away instead of waiting for nothing.
         """
-        if self._state is not None and done(self._state):
+        async with self._command_lock:
+            packet, done = plan(self._state)
+            if self._state is not None and done(self._state):
+                await self._session.send(packet)
+                return self._state
+            waiter = self._wait_for(done)
             await self._session.send(packet)
-            return self._state
-        waiter = self._wait_for(done)
-        await self._session.send(packet)
-        return await self._confirm(waiter, label)
+            return await self._confirm(waiter, label)
 
-    def _wait_for(self, condition: Callable[[LampState], bool]) -> asyncio.Future:
+    def _wait_for(self, condition: Done) -> asyncio.Future:
         future = asyncio.get_running_loop().create_future()
         self._waiters.append((condition, future))
         return future

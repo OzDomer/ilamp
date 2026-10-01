@@ -19,9 +19,10 @@ from tests.fake_lamp import FakeLamp, factory_for
 FAST = 0.05  # heartbeat interval for tests (the fake's watchdog is 0.3s)
 
 
-def make_session(**kwargs):
+def make_session(fake_options: dict | None = None, **kwargs):
     lamps: list[FakeLamp] = []
-    session = Session(client_factory=factory_for(lamps), heartbeat_interval=FAST, **kwargs)
+    factory = factory_for(lamps, **(fake_options or {}))
+    session = Session(client_factory=factory, heartbeat_interval=FAST, **kwargs)
     return session, lamps
 
 
@@ -109,5 +110,21 @@ def test_heartbeat_stops_after_close():
         count = lamps[0].heartbeats
         await asyncio.sleep(0.2)
         assert lamps[0].heartbeats == count
+
+    asyncio.run(run())
+
+
+def test_failed_open_disconnects_and_is_not_a_drop():
+    # If the hello/handshake write fails after we're connected, open() must
+    # disconnect (nobody else will), and that disconnect is ours, not a drop.
+    async def run():
+        drops = []
+        session, lamps = make_session(
+            fake_options={"fail_writes": True}, on_disconnect=lambda: drops.append(1)
+        )
+        with pytest.raises(RuntimeError):
+            await session.open()
+        assert not lamps[0].is_connected
+        assert drops == []
 
     asyncio.run(run())
