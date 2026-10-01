@@ -12,7 +12,7 @@ import asyncio
 import pytest
 
 from hub.service import LampUnavailableError
-from ilamp import Mode
+from ilamp import CommandNotConfirmedError, Mode
 from tests.service_helpers import make_service, next_status, run, wait_until
 
 
@@ -245,6 +245,33 @@ def test_ring_level_goes_through_the_service():
             await wait_until(lambda: service.status.connected)
             sun = await service.sun_level(8)
             assert sun.level == 8 and service.status.sun.level == 8
+        finally:
+            await service.stop()
+
+    run(go())
+
+
+def test_a_drop_while_a_command_waits_for_the_lock_is_reported_as_unavailable():
+    # _require_lamp() passes before the command queues up behind the lock.
+    # If the lamp drops meanwhile, the queued command must still fail with
+    # the service's own error, not with a session-layer NotConnectedError
+    # that nothing above knows how to answer.
+    async def go():
+        service, fakes, _ = make_service()
+        await service.start()
+        try:
+            await wait_until(lambda: service.status.connected)
+            first = asyncio.create_task(
+                service.mode(2)
+            )  # rejected: holds the lock until it times out
+            await asyncio.sleep(0.05)
+            second = asyncio.create_task(service.power(False))  # queued behind the lock
+            await asyncio.sleep(0.05)
+            fakes[0].vanish()
+            with pytest.raises(CommandNotConfirmedError):
+                await first
+            with pytest.raises(LampUnavailableError):
+                await second
         finally:
             await service.stop()
 

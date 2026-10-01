@@ -19,13 +19,16 @@ what the projector HUD will reuse later.
 
 import asyncio
 import logging
-from collections.abc import AsyncIterator, Callable, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, replace
+from typing import TypeVar
 
-from ilamp import Lamp, LampState, Mode, SunState
+from ilamp import Lamp, LampState, Mode, NotConnectedError, SunState
 
 log = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 # Seconds between connection attempts. The last value repeats. A missed
 # scan is normal for this lamp, so we never give up; we just slow down.
@@ -34,6 +37,9 @@ RETRY_DELAYS = (2.0, 4.0, 8.0, 15.0)
 
 class LampUnavailableError(Exception):
     """The hub is not connected to the lamp right now (it keeps trying)."""
+
+
+UNAVAILABLE = "The lamp is not connected right now; the hub keeps trying."
 
 
 @dataclass(frozen=True)
@@ -116,30 +122,43 @@ class LampService:
     # -- commands -------------------------------------------------------------
 
     async def power(self, on: bool) -> LampState:
-        lamp = self._require_lamp()
-        return self._perceived(await (lamp.on() if on else lamp.off()))
+        return self._perceived(await self._run(lambda lamp: lamp.on() if on else lamp.off()))
 
     async def color(self, r: int, g: int, b: int, brightness: int | None = None) -> LampState:
-        return self._perceived(await self._require_lamp().color(r, g, b, brightness))
+        return self._perceived(await self._run(lambda lamp: lamp.color(r, g, b, brightness)))
 
     async def brightness(self, value: int) -> LampState:
-        return self._perceived(await self._require_lamp().brightness(value))
+        return self._perceived(await self._run(lambda lamp: lamp.brightness(value)))
 
     async def mode(self, m: Mode) -> LampState:
-        return self._perceived(await self._require_lamp().mode(m))
+        return self._perceived(await self._run(lambda lamp: lamp.mode(m)))
 
     async def refresh(self) -> LampState:
-        return self._perceived(await self._require_lamp().refresh())
+        return self._perceived(await self._run(lambda lamp: lamp.refresh()))
 
     async def sun(self, on: bool) -> SunState:
-        lamp = self._require_lamp()
-        return await (lamp.sun_on() if on else lamp.sun_off())
+        return await self._run(lambda lamp: lamp.sun_on() if on else lamp.sun_off())
 
     async def sun_temperature(self, value: int) -> SunState:
-        return await self._require_lamp().sun_temperature(value)
+        return await self._run(lambda lamp: lamp.sun_temperature(value))
 
     async def sun_level(self, value: int) -> SunState:
-        return await self._require_lamp().sun_level(value)
+        return await self._run(lambda lamp: lamp.sun_level(value))
+
+    async def _run(self, action: Callable[[Lamp], Awaitable[T]]) -> T:
+        """
+        Run one lamp command. Fails fast if the lamp is away; and if it goes
+        away WHILE the command is queued behind Lamp's command lock, the
+        session's NotConnectedError becomes the same LampUnavailableError,
+        so callers never see a layer they don't know about.
+        """
+        lamp = self._lamp
+        if lamp is None or not self._status.connected:
+            raise LampUnavailableError(UNAVAILABLE)
+        try:
+            return await action(lamp)
+        except NotConnectedError as e:
+            raise LampUnavailableError(UNAVAILABLE) from e
 
     def _perceived(self, state: LampState) -> LampState:
         """The lamp's state with the color scale undone: what the user asked for."""
@@ -148,11 +167,6 @@ class LampService:
             for v, k in zip(state.rgb, self._scale, strict=True)
         )
         return replace(state, rgb=rgb)
-
-    def _require_lamp(self) -> Lamp:
-        if self._lamp is None or not self._status.connected:
-            raise LampUnavailableError("The lamp is not connected right now; the hub keeps trying.")
-        return self._lamp
 
     # -- the supervisor -------------------------------------------------------
 
