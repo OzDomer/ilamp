@@ -48,17 +48,22 @@ class Lamp:
         color_scale: tuple[float, float, float] = (1.0, 1.0, 1.0),
         confirm_timeout: float = CONFIRM_TIMEOUT,
         on_disconnect: Callable[[], None] | None = None,
+        on_state: Callable[[LampState], None] | None = None,
         **session_options,
     ):
         """
         color_scale: multiply R, G, B by these before sending. The lamp's
             green and blue overpower red, so pure white looks cyan; something
             like (1.0, 0.7, 0.6) can balance it. Tune by eye.
+        on_state: called with every state the lamp reports, including
+            changes nobody here asked for (another controller, the lamp's
+            own buttons). Must not raise and must not block.
         session_options: passed through to Session (tests use this to plug
             in the fake lamp).
         """
         self._scale = color_scale
         self._timeout = confirm_timeout
+        self._on_state = on_state
         self._session = Session(
             name=name,
             on_packet=self._handle_packet,
@@ -207,6 +212,8 @@ class Lamp:
         if state is None:
             return  # heartbeat answers and other replies
         self._state = state
+        if self._on_state is not None:
+            self._on_state(state)
         for condition, future in self._waiters:
             if not future.done() and condition(state):
                 future.set_result(state)

@@ -146,3 +146,22 @@ def test_concurrent_commands_do_not_clobber_each_other():
             assert lamp.state.brightness == 80
 
     run(go())
+
+
+def test_on_state_hears_every_report_including_unrequested_ones():
+    # The hub must learn about changes it didn't ask for (another input,
+    # the lamp's own buttons), not just the ones it is waiting on.
+    async def go():
+        seen = []
+        lamp, fakes = make_lamp(on_state=seen.append)
+        async with lamp:
+            await lamp.color(255, 0, 0)
+            fakes[0].external_change(power=2)  # someone pressed the lamp's button
+            await asyncio.sleep(0.05)
+        assert [(s.on, s.rgb) for s in seen] == [
+            (True, (255, 255, 255)),  # the refresh() on connect
+            (True, (255, 0, 0)),  # our command
+            (False, (255, 0, 0)),  # the button press
+        ]
+
+    run(go())

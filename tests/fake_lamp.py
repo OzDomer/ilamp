@@ -88,6 +88,11 @@ class FakeLamp:
 
     # -- lamp behavior ----------------------------------------------------------
 
+    def external_change(self, **fields):
+        """The lamp changes on its own (a button press) and reports it, like the real one."""
+        self.state.update(fields)
+        self._reply(state_message(p.Op.REPORT, 0x01, self.state))
+
     def _handle(self, data: bytes):
         if data == p.HELLO:
             self._hello_seen = True
