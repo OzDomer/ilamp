@@ -437,3 +437,66 @@ input[type="range"]::-moz-range-thumb {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* -- the room light (white ring) ------------------------------------------ */
+
+.sun-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 14px;
+  align-items: center;
+}
+
+.toggle {
+  appearance: none;
+  font: inherit;
+  font-size: 15px;
+  color: var(--muted);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 12px 20px;
+  cursor: pointer;
+  transition: color 200ms, border-color 200ms, background 200ms, box-shadow 200ms;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.toggle:hover { color: var(--ink); }
+
+.toggle[aria-pressed="true"] {
+  color: var(--bg);
+  background: var(--ink);
+  border-color: var(--ink);
+  box-shadow: 0 0 18px #ffd9a055;
+}
+
+.sun-temp {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* the track IS the scale: amber on the left, blue-white on the right */
+#sunTemp::-webkit-slider-runnable-track {
+  background: linear-gradient(90deg, #ffb46b, #e2eeff);
+}
+
+#sunTemp::-moz-range-track {
+  background: linear-gradient(90deg, #ffb46b, #e2eeff);
+}
+
+.temp-scale {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: -6px;
+}
+
+/* the ring has no mode animation; the disc just glows white */
+.panel[data-on="true"][data-mode="sun"] .lamp-face { animation: none; }
+
+.panel > :nth-child(6) { animation-delay: 320ms; }

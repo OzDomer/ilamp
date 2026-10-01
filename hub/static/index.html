@@ -52,6 +52,18 @@
       </div>
     </section>
 
+    <!-- The white ring: real room light. The lamp runs it OR the RGB light, never both. -->
+    <section class="control">
+      <div class="control-head"><span>Room light</span></div>
+      <div class="sun-row">
+        <button class="toggle" id="sunToggle" type="button" aria-pressed="false">Ring</button>
+        <div class="sun-temp">
+          <input id="sunTemp" type="range" min="0" max="255" step="1" value="128" aria-label="Warm to cold">
+          <div class="temp-scale" aria-hidden="true"><span>warm</span><span>cold</span></div>
+        </div>
+      </div>
+    </section>
+
     <section class="control">
       <div class="control-head"><span>Mode</span></div>
       <div class="modes" id="modes" role="group" aria-label="Mode">

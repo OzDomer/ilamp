@@ -4,7 +4,7 @@
  * Two rules keep this simple:
  *  1. The page renders only what the hub pushes ("state" messages). A tap
  *     sends a request; the UI changes when the lamp confirms, not before.
- *  2. One request per interaction, and for the slider and color picker at
+ *  2. One request per interaction, and for the sliders and color picker at
  *     most one in flight at a time, newest value wins (see latestOnly).
  *
  * The types below mirror hub/messages.py. Change one, change the other.
@@ -26,6 +26,8 @@ const brightnessValue = $("#brightnessValue");
 const colorInput = $("#color");
 const colorValue = $("#colorValue");
 const modeButtons = $("#modes");
+const sunToggle = $("#sunToggle");
+const sunTempInput = $("#sunTemp");
 const toast = $("#toast");
 let socket = null;
 let nextId = 1;
@@ -52,7 +54,7 @@ function connect() {
 function handleMessage(message) {
     switch (message.type) {
         case "state":
-            render(message.connected, message.lamp);
+            render(message.connected, message.lamp, message.sun);
             break;
         case "ack":
             if (message.id !== null) {
@@ -108,7 +110,7 @@ function latestOnly(send) {
             await send(value);
         }
         catch (err) {
-            showToast(err instanceof Error ? err.message : String(err));
+            report(err);
         }
         inFlight = false;
         if (queued !== null) {
@@ -127,7 +129,7 @@ function latestOnly(send) {
 // --- rendering what the lamp reports -------------------------------------------
 /** Controls the user is holding right now; a pushed state must not yank them. */
 const held = new Set();
-function render(connected, lamp) {
+function render(connected, lamp, sun) {
     if (!connected || lamp === null) {
         setLink("lamp", "lamp away, reconnecting…");
         panel.dataset["on"] = "false";
@@ -135,13 +137,24 @@ function render(connected, lamp) {
         return;
     }
     setLink("connected", "connected");
+    // The disc shows whichever light is on. The lamp never runs both.
+    const sunOn = sun?.on ?? false;
     const hex = toHex(lamp.rgb);
-    panel.style.setProperty("--lamp-color", hex);
-    panel.style.setProperty("--lamp-level", (lamp.brightness / 255).toFixed(3));
-    panel.dataset["on"] = String(lamp.on);
-    panel.dataset["mode"] = lamp.mode;
+    if (sunOn) {
+        panel.style.setProperty("--lamp-color", sunColor(sun?.temperature ?? 128));
+        panel.style.setProperty("--lamp-level", "1");
+        panel.dataset["on"] = "true";
+        panel.dataset["mode"] = "sun";
+        lampLabel.textContent = "room light";
+    }
+    else {
+        panel.style.setProperty("--lamp-color", hex);
+        panel.style.setProperty("--lamp-level", (lamp.brightness / 255).toFixed(3));
+        panel.dataset["on"] = String(lamp.on);
+        panel.dataset["mode"] = lamp.mode;
+        lampLabel.textContent = lamp.on ? lamp.mode : "off";
+    }
     lampButton.setAttribute("aria-pressed", String(lamp.on));
-    lampLabel.textContent = lamp.on ? lamp.mode : "off";
     if (!held.has(brightnessInput))
         brightnessInput.value = String(lamp.brightness);
     brightnessValue.textContent = String(lamp.brightness);
@@ -149,18 +162,31 @@ function render(connected, lamp) {
         colorInput.value = hex;
     colorValue.textContent = hex;
     for (const button of modeButtons.querySelectorAll("button")) {
-        button.classList.toggle("active", button.dataset["mode"] === lamp.mode);
+        button.classList.toggle("active", !sunOn && button.dataset["mode"] === lamp.mode);
+    }
+    sunToggle.setAttribute("aria-pressed", String(sunOn));
+    if (sun?.temperature != null && !held.has(sunTempInput)) {
+        sunTempInput.value = String(sun.temperature);
     }
 }
 function setLink(kind, text) {
     panel.dataset["link"] = kind;
     statusText.textContent = text;
 }
+/** What the ring looks like at a temperature: warm amber-white at 0, cool blue-white at 255. */
+function sunColor(temperature) {
+    const warm = [255, 180, 107];
+    const cold = [226, 238, 255];
+    const t = temperature / 255;
+    return toHex(warm.map((w, i) => Math.round(w + (cold[i] - w) * t)));
+}
 // --- the controls --------------------------------------------------------------
 function report(err) {
     showToast(err instanceof Error ? err.message : String(err));
 }
 lampButton.addEventListener("click", () => {
+    // Tapping the disc toggles the RGB light. If the ring is on, the lamp
+    // switches it off by itself when the RGB light comes on.
     const isOn = lampButton.getAttribute("aria-pressed") === "true";
     request({ type: "power", on: !isOn }).catch(report);
 });
@@ -181,11 +207,21 @@ for (const swatch of document.querySelectorAll(".swatch[data-rgb]")) {
             sendColor(rgb);
     });
 }
-// While a finger is on the slider or the picker is open, pushed states
+sunToggle.addEventListener("click", () => {
+    const isOn = sunToggle.getAttribute("aria-pressed") === "true";
+    request({ type: "sun", on: !isOn }).catch(report);
+});
+const sendSunTemperature = latestOnly((value) => request({ type: "sun_temperature", value }));
+sunTempInput.addEventListener("input", () => {
+    sendSunTemperature(Number(sunTempInput.value));
+});
+// While a finger is on a slider or the picker is open, pushed states
 // update the numbers but leave the control where the user put it.
-brightnessInput.addEventListener("pointerdown", () => held.add(brightnessInput));
-for (const type of ["pointerup", "pointercancel"]) {
-    brightnessInput.addEventListener(type, () => held.delete(brightnessInput));
+for (const slider of [brightnessInput, sunTempInput]) {
+    slider.addEventListener("pointerdown", () => held.add(slider));
+    for (const type of ["pointerup", "pointercancel"]) {
+        slider.addEventListener(type, () => held.delete(slider));
+    }
 }
 colorInput.addEventListener("focus", () => held.add(colorInput));
 for (const type of ["change", "blur"]) {
