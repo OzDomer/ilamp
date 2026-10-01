@@ -9,7 +9,7 @@ import asyncio
 
 import pytest
 
-from ilamp import CommandNotConfirmedError, Lamp, Mode
+from ilamp import CommandNotConfirmedError, Lamp, Mode, SunState
 from tests.fake_lamp import FakeLamp, factory_for
 
 
@@ -163,5 +163,72 @@ def test_on_state_hears_every_report_including_unrequested_ones():
             (True, (255, 0, 0)),  # our command
             (False, (255, 0, 0)),  # the button press
         ]
+
+    run(go())
+
+
+# -- the sun ring -----------------------------------------------------------------
+
+
+def test_sun_state_is_known_right_after_connecting():
+    async def go():
+        lamp, _ = make_lamp()
+        async with lamp:
+            # The fake starts with the ring off, level 16, temperature 128.
+            assert lamp.sun == SunState(on=False, level=16, temperature=128)
+
+    run(go())
+
+
+def test_sun_on_is_confirmed_and_implies_the_rgb_light_went_off():
+    # The lamp switches the RGB light off when the ring comes on, but does
+    # NOT report that. Lamp must infer it, and tell on_state about it.
+    async def go():
+        seen = []
+        lamp, fakes = make_lamp(on_state=seen.append)
+        async with lamp:
+            assert lamp.state.on is True
+            sun = await lamp.sun_on()
+            assert sun.on is True and fakes[0].sun["power"] == 1
+            assert fakes[0].state["power"] == 2  # the fake copies the real side effect
+            assert lamp.state.on is False  # inferred, since the lamp doesn't say
+            assert seen[-1].on is False
+
+    run(go())
+
+
+def test_rgb_on_is_confirmed_and_implies_the_ring_went_off():
+    async def go():
+        seen = []
+        lamp, fakes = make_lamp(on_sun=seen.append)
+        async with lamp:
+            await lamp.sun_on()
+            await lamp.on()
+            assert lamp.state.on is True
+            assert lamp.sun.on is False and fakes[0].sun["power"] == 2
+            assert seen[-1].on is False
+
+    run(go())
+
+
+def test_sun_temperature_is_confirmed():
+    async def go():
+        lamp, fakes = make_lamp()
+        async with lamp:
+            sun = await lamp.sun_temperature(0)  # warm
+            assert sun.temperature == 0 and fakes[0].sun["temperature"] == 0
+            with pytest.raises(ValueError):
+                await lamp.sun_temperature(300)
+
+    run(go())
+
+
+def test_sun_off_is_confirmed():
+    async def go():
+        lamp, fakes = make_lamp()
+        async with lamp:
+            await lamp.sun_on()
+            sun = await lamp.sun_off()
+            assert sun.on is False and fakes[0].sun["power"] == 2
 
     run(go())

@@ -193,3 +193,10 @@ def test_sun_and_light_parsers_ignore_each_other():
     assert p.parse_state(sun_report) is None
     assert p.parse_sun(light_report) is None
     assert p.parse_sun(b"hello") is None
+
+
+def test_read_sun_temperature_matches_capture():
+    # frames 14980 / 14989: the app asking for the ring's temperature, and the answer
+    assert p.read_sun_temperature() == hx("01fe0000 5181 1800 0000000000000000 0d07010203000e00")
+    answer = hx("01fe0000 4181 1700 0000000000000000 0d070102039c0e")
+    assert p.parse_sun(answer) == SunUpdate(on=None, level=None, temperature=0x9C)

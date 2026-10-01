@@ -1,7 +1,7 @@
 """ilamp - control an old i_Lamp Bluetooth speaker lamp from Python."""
 
 from .lamp import CommandNotConfirmedError, Lamp
-from .protocol import LampState, Mode
+from .protocol import LampState, Mode, SunState
 from .session import LampNotFoundError, NotConnectedError
 
 __all__ = [
@@ -11,4 +11,5 @@ __all__ = [
     "LampState",
     "Mode",
     "NotConnectedError",
+    "SunState",
 ]

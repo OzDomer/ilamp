@@ -1,8 +1,7 @@
 """
 demo.py - the whole library in one tour, on the REAL lamp.
 
-Compare with lamp_test.py's "demo" test: same lamp, same result, but no
-packets, handshakes or heartbeats in sight. That's what the layers buy you.
+No packets, handshakes or heartbeats in sight. That's what the layers buy you.
 
 Run from the project folder:  python -m examples.demo
 """
@@ -30,6 +29,20 @@ async def main() -> None:
         await asyncio.sleep(1.5)
         await lamp.brightness(255)
         await asyncio.sleep(1.5)
+
+        print("sun ring: on (the RGB light goes off by itself), warm, cold, off...")
+        await lamp.sun_on()
+        print(f"  ring: {lamp.sun}")
+        print(f"  rgb:  {lamp.state}")
+        await asyncio.sleep(2)
+        await lamp.sun_temperature(0)
+        await asyncio.sleep(2)
+        await lamp.sun_temperature(255)
+        await asyncio.sleep(2)
+        await lamp.sun_off()
+        await lamp.on()
+        print(f"  ring: {lamp.sun}")
+        print(f"  rgb:  {lamp.state}")
 
         for mode in (Mode.RAINBOW, Mode.PULSE, Mode.CANDLELIGHT, Mode.ALERT):
             print(f"mode: {mode.name.lower()}...")

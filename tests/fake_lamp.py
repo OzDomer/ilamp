@@ -10,6 +10,8 @@ It copies every behavior we observed in the real lamp:
   - a command that changes nothing           -> no reply    (mode 00 at the start)
   - an unknown mode                          -> ignored     (modes 02, 05, 08+)
   - read_state                               -> state answer
+  - the sun ring (group 01): on/off, temperature, level 1-16; switching one
+    light on turns the other off WITHOUT a report, like the real lamp
 
 The timings are shrunk (watchdog 0.3s instead of ~14s) so tests run fast.
 It implements the same small interface as bleak's BleakClient, so Session
@@ -25,6 +27,12 @@ STATUS_PACKET = bytes.fromhex(
     "01fe0000410028000000000000000000001f001f0700000800000000000000000000000001036148"
 )
 VALID_MODES = {0x00, 0x01, 0x03, 0x04, 0x06, 0x07}
+
+
+def sun_message(op: int, cmd: int, args: list[int]) -> bytes:
+    """A lamp reply about the ring: 0d len 01 op cmd args 0e (no padding)."""
+    msg = bytes([p.START, 6 + len(args), p.Group.SUN, op, cmd, *args, p.END])
+    return p.wrap(p.REPLY, msg)
 
 
 def state_message(op: int, cmd: int, state: dict) -> bytes:
@@ -47,6 +55,7 @@ class FakeLamp:
         self.answer_reads = answer_reads  # False: a lamp whose read answers never arrive
         self.fail_writes = fail_writes  # True: every write raises, like a dying link
         self.state = {"power": 1, "brightness": 255, "rgb": [255, 255, 255], "mode": 0}
+        self.sun = {"power": 2, "level": 16, "temperature": 128}
         self.received: list[bytes] = []  # everything written to us, for assertions
         self.heartbeats = 0
         self._connected = False
@@ -119,6 +128,9 @@ class FakeLamp:
 
     def _command(self, msg: bytes):
         op, cmd, args = msg[3], msg[4], msg[5:]
+        if msg[2] == p.Group.SUN:
+            self._sun_command(op, cmd, msg[5 : msg[1] - 1])
+            return
         if op == p.Op.READ and cmd == p.Cmd.STATE:
             if self.answer_reads:
                 self._reply(state_message(p.Op.READ, p.Cmd.STATE, self.state))
@@ -128,6 +140,8 @@ class FakeLamp:
         before = dict(self.state, rgb=list(self.state["rgb"]))
         if cmd == p.Cmd.POWER:
             self.state["power"] = args[0]
+            if args[0] == p.Power.ON:
+                self.sun["power"] = p.Power.OFF  # silently, like the real lamp
         elif cmd == p.Cmd.COLOR:
             self.state["brightness"] = args[0]
             self.state["rgb"] = list(args[1:4])
@@ -135,6 +149,33 @@ class FakeLamp:
             self.state["mode"] = args[0]
         if self.state != before:  # the real lamp only reports changes
             self._reply(state_message(p.Op.REPORT, 0x01, self.state))
+
+    def _sun_command(self, op: int, cmd: int, args: bytes):
+        power_and_level = [self.sun["power"], self.sun["level"]]
+        if op == p.Op.READ:
+            if cmd == p.SunCmd.LEVEL:
+                self._reply(sun_message(p.Op.READ, p.SunCmd.LEVEL, power_and_level))
+            elif cmd == p.SunCmd.TEMPERATURE:
+                self._reply(sun_message(p.Op.READ, p.SunCmd.TEMPERATURE, [self.sun["temperature"]]))
+            return
+        if op != p.Op.WRITE:
+            return
+        if cmd == p.SunCmd.POWER:
+            self.sun["power"] = args[0]
+            if args[0] == p.Power.ON:
+                self.state["power"] = p.Power.OFF  # silently, like the real lamp
+            # A power write always gets a report, even without a change (observed).
+            self._reply(sun_message(p.Op.REPORT, p.SunCmd.POWER, [args[0], self.sun["level"]]))
+            if args[0] == p.Power.ON:
+                self._reply(
+                    sun_message(p.Op.REPORT, p.SunCmd.TEMPERATURE, [self.sun["temperature"]])
+                )
+        elif cmd == p.SunCmd.TEMPERATURE and args[0] != self.sun["temperature"]:
+            self.sun["temperature"] = args[0]
+            self._reply(sun_message(p.Op.REPORT, p.SunCmd.TEMPERATURE, [args[0]]))
+        elif cmd == p.SunCmd.LEVEL and 1 <= args[0] <= 16:  # larger values are ignored
+            self.sun["level"] = args[0]
+            self._reply(sun_message(p.Op.REPORT, p.SunCmd.POWER, [self.sun["power"], args[0]]))
 
     def _reply(self, packet: bytes):
         if self._notify is not None:

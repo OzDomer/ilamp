@@ -197,6 +197,11 @@ def read_sun_state() -> bytes:
     return wrap(COMMAND, inner(Group.SUN, Op.READ, SunCmd.LEVEL, [0, 0]))
 
 
+def read_sun_temperature() -> bytes:
+    """Ask for the ring's temperature (frame 14980 in the capture)."""
+    return wrap(COMMAND, inner(Group.SUN, Op.READ, SunCmd.TEMPERATURE, [0]))
+
+
 def _check_byte(name: str, value: int) -> None:
     if not 0 <= value <= 255:
         raise ValueError(f"{name} must be 0-255, got {value}")
@@ -252,6 +257,22 @@ class SunUpdate:
     temperature: int | None
 
 
+@dataclass(frozen=True)
+class SunState:
+    """The ring's full state, merged from the lamp's partial updates."""
+
+    on: bool
+    level: int
+    temperature: int | None  # 0 warm .. 255 cold; None until the lamp has said
+
+    def apply(self, update: SunUpdate) -> "SunState":
+        return SunState(
+            on=self.on if update.on is None else update.on,
+            level=self.level if update.level is None else update.level,
+            temperature=(self.temperature if update.temperature is None else update.temperature),
+        )
+
+
 def packet_type(data: bytes) -> PacketType | None:
     """Return the type of a packet, or None if it isn't one of ours."""
     if len(data) < WRAPPER_SIZE or data[:4] != HEADER:
@@ -289,6 +310,7 @@ def parse_sun(data: bytes) -> SunUpdate | None:
       - report after a power change:   0d 08 01 04 01 <power> <level> 0e
       - answer to read_sun_state():    0d 08 01 02 02 <power> <level> 0e
       - report after a slider change:  0d 07 01 04 03 <temperature> 0e
+      - answer to read_sun_temperature(): 0d 07 01 02 03 <temperature> 0e
     """
     if packet_type(data) != REPLY:
         return None
@@ -301,6 +323,6 @@ def parse_sun(data: bytes) -> SunUpdate | None:
     )
     if power_and_level and len(args) >= 2:
         return SunUpdate(on=args[0] == Power.ON, level=args[1], temperature=None)
-    if op == Op.REPORT and cmd == SunCmd.TEMPERATURE and len(args) >= 1:
+    if cmd == SunCmd.TEMPERATURE and op in (Op.REPORT, Op.READ) and len(args) >= 1:
         return SunUpdate(on=None, level=None, temperature=args[0])
     return None
