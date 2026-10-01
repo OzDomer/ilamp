@@ -6,9 +6,11 @@ ILAMP_NAME, ILAMP_COLOR_SCALE. The server listens on all interfaces by
 default so a phone on the same WiFi can open it; there is no login, so
 anyone on that network can control the lamp.
 
---color-scale R,G,B multiplies colors before they reach the lamp. Its
-green and blue overpower red, so pure white looks cyan; something like
-1,0.7,0.6 balances it. Tune by eye.
+--color-scale R,G,B multiplies colors before they reach the lamp's RGB
+LEDs. Their green and blue overpower red, so pure white looks cyan. The
+default was tuned by eye on one lamp; 1,1,1 turns the correction off.
+(The lamp also has separate white LEDs for real room light; their command
+is not known yet.)
 """
 
 import argparse
@@ -21,6 +23,8 @@ from ilamp import Lamp
 
 from .server import create_app
 from .service import LampService
+
+DEFAULT_COLOR_SCALE = "1,0.45,0.35"  # the whitest white the RGB LEDs can do, tuned by eye
 
 
 def color_scale(text: str) -> tuple[float, float, float]:
@@ -39,8 +43,8 @@ def main() -> None:
     parser.add_argument(
         "--color-scale",
         type=color_scale,
-        default=os.environ.get("ILAMP_COLOR_SCALE", "1,1,1"),
-        help="R,G,B multipliers, e.g. 1,0.7,0.6 (default: 1,1,1)",
+        default=os.environ.get("ILAMP_COLOR_SCALE", DEFAULT_COLOR_SCALE),
+        help=f"R,G,B multipliers for the RGB LEDs (default: {DEFAULT_COLOR_SCALE})",
     )
     args = parser.parse_args()
     scale = color_scale(args.color_scale) if isinstance(args.color_scale, str) else args.color_scale
