@@ -61,10 +61,10 @@ class PacketType(bytes):
 
 
 HANDSHAKE = PacketType(b"\x00\x00")  # session setup, before anything else
-COMMAND = PacketType(b"\x51\x81")    # us -> lamp, with inner message
-REPLY = PacketType(b"\x41\x81")      # lamp -> us, with inner message
+COMMAND = PacketType(b"\x51\x81")  # us -> lamp, with inner message
+REPLY = PacketType(b"\x41\x81")  # lamp -> us, with inner message
 HEARTBEAT = PacketType(b"\x51\x00")  # us -> lamp, empty: "still here"
-STATUS = PacketType(b"\x41\x00")     # lamp -> us, answer to each heartbeat
+STATUS = PacketType(b"\x41\x00")  # lamp -> us, answer to each heartbeat
 TIME_SYNC = PacketType(b"\x53\x00")  # us -> lamp, sets the lamp's clock
 
 
@@ -74,8 +74,8 @@ class Group(IntEnum):
 
 
 class Op(IntEnum):
-    READ = 0x02    # "what is the current value?"
-    WRITE = 0x03   # "set this value"
+    READ = 0x02  # "what is the current value?"
+    WRITE = 0x03  # "set this value"
     REPORT = 0x04  # lamp -> us: "my state just changed"
 
 
@@ -93,17 +93,19 @@ class Power(IntEnum):
 
 class Mode(IntEnum):
     """Light modes, mapped by fuzzing the mode command and watching the lamp."""
-    NORMAL = 0x00       # steady color
-    PULSE = 0x01        # breathes through colors
-    RHYTHM = 0x03       # follows audio streamed to the lamp's speaker
-    RAINBOW = 0x04      # cycles through colors
+
+    NORMAL = 0x00  # steady color
+    PULSE = 0x01  # breathes through colors
+    RHYTHM = 0x03  # follows audio streamed to the lamp's speaker
+    RAINBOW = 0x04  # cycles through colors
     CANDLELIGHT = 0x06  # flickers
-    ALERT = 0x07        # slow fade, blinks 3x - hidden, not in the app
+    ALERT = 0x07  # slow fade, blinks 3x - hidden, not in the app
 
 
 # ---------------------------------------------------------------------------
 # Building packets (what we send)
 # ---------------------------------------------------------------------------
+
 
 def wrap(ptype: PacketType, body: bytes = b"") -> bytes:
     """Put the 16-byte outer wrapper around a body (which may be empty)."""
@@ -174,9 +176,11 @@ def time_sync(when: datetime) -> bytes:
 # Parsing packets (what the lamp sends)
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class LampState:
     """The lamp's full light state, as reported by the lamp itself."""
+
     on: bool
     brightness: int
     rgb: tuple[int, int, int]

@@ -21,7 +21,7 @@ tests it's a fake lamp, so the session can be tested without hardware.
 
 import asyncio
 from collections.abc import Awaitable, Callable
-from typing import Protocol
+from typing import Protocol, Self
 
 from . import protocol
 
@@ -97,7 +97,7 @@ class Session:
         heartbeat_interval: float = HEARTBEAT_INTERVAL,
     ):
         self.name = name
-        self.on_packet = on_packet          # called with every packet the lamp sends
+        self.on_packet = on_packet  # called with every packet the lamp sends
         self.on_disconnect = on_disconnect  # called if the lamp drops us
         self._factory = client_factory
         self._interval = heartbeat_interval
@@ -152,7 +152,7 @@ class Session:
             finally:
                 await self._client.disconnect()
 
-    async def __aenter__(self) -> "Session":
+    async def __aenter__(self) -> Self:
         await self.open()
         return self
 
@@ -187,8 +187,8 @@ class Session:
                 await asyncio.sleep(self._interval)
         except asyncio.CancelledError:
             raise  # close() cancelled us - that's the normal way to stop
-        except Exception:
-            return  # the connection died mid-write; _handle_disconnect reports it
+        except Exception:  # noqa: BLE001 - any error mid-write means the link died
+            return  # _handle_disconnect reports it
 
     # -- callbacks from the Bluetooth client ---------------------------------
 

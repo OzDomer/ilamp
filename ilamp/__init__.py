@@ -5,10 +5,10 @@ from .protocol import LampState, Mode
 from .session import LampNotFoundError, NotConnectedError
 
 __all__ = [
+    "CommandNotConfirmedError",
     "Lamp",
+    "LampNotFoundError",
     "LampState",
     "Mode",
-    "CommandNotConfirmedError",
-    "LampNotFoundError",
     "NotConnectedError",
 ]

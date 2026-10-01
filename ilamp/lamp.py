@@ -23,6 +23,7 @@ What this layer adds:
 
 import asyncio
 from collections.abc import Callable
+from typing import Self
 
 from . import protocol
 from .protocol import LampState, Mode
@@ -89,7 +90,7 @@ class Lamp:
     async def disconnect(self) -> None:
         await self._session.close()
 
-    async def __aenter__(self) -> "Lamp":
+    async def __aenter__(self) -> Self:
         await self.connect()
         return self
 
@@ -120,7 +121,9 @@ class Lamp:
         return await self._command(self._fixed(protocol.power(True), lambda s: s.on), "power on")
 
     async def off(self) -> LampState:
-        return await self._command(self._fixed(protocol.power(False), lambda s: not s.on), "power off")
+        return await self._command(
+            self._fixed(protocol.power(False), lambda s: not s.on), "power off"
+        )
 
     async def color(self, r: int, g: int, b: int, brightness: int | None = None) -> LampState:
         """
@@ -149,7 +152,9 @@ class Lamp:
 
     async def mode(self, m: Mode | int) -> LampState:
         """Switch light mode. Unknown values are rejected by the lamp -> error."""
-        return await self._command(self._fixed(protocol.mode(m), lambda s: s.mode == m), f"mode {m!r}")
+        return await self._command(
+            self._fixed(protocol.mode(m), lambda s: s.mode == m), f"mode {m!r}"
+        )
 
     # -- internals ------------------------------------------------------------
 
@@ -188,7 +193,7 @@ class Lamp:
     async def _confirm(self, future: asyncio.Future, label: str) -> LampState:
         try:
             return await asyncio.wait_for(future, self._timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise CommandNotConfirmedError(
                 f"The lamp didn't confirm '{label}' within {self._timeout}s "
                 "(rejected, or the connection is struggling)."

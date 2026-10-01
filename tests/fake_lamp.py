@@ -22,8 +22,7 @@ from ilamp import protocol as p
 
 # Copied from a real heartbeat reply (frame 5843 in the capture).
 STATUS_PACKET = bytes.fromhex(
-    "01fe0000410028000000000000000000"
-    "001f001f0700000800000000000000000000000001036148"
+    "01fe0000410028000000000000000000001f001f0700000800000000000000000000000001036148"
 )
 VALID_MODES = {0x00, 0x01, 0x03, 0x04, 0x06, 0x07}
 
@@ -46,9 +45,9 @@ class FakeLamp:
         self.on_disconnect = on_disconnect
         self.watchdog = watchdog
         self.answer_reads = answer_reads  # False: a lamp whose read answers never arrive
-        self.fail_writes = fail_writes    # True: every write raises, like a dying link
+        self.fail_writes = fail_writes  # True: every write raises, like a dying link
         self.state = {"power": 1, "brightness": 255, "rgb": [255, 255, 255], "mode": 0}
-        self.received: list[bytes] = []   # everything written to us, for assertions
+        self.received: list[bytes] = []  # everything written to us, for assertions
         self.heartbeats = 0
         self._connected = False
         self._notify = None
@@ -107,7 +106,7 @@ class FakeLamp:
             if not self._session_open:
                 self._drop(report=True)  # the 0.4s kick
                 return
-            self._command(data[p.WRAPPER_SIZE:])
+            self._command(data[p.WRAPPER_SIZE :])
 
     def _command(self, msg: bytes):
         op, cmd, args = msg[3], msg[4], msg[5:]
@@ -158,8 +157,10 @@ def factory_for(lamp_holder: list, **kwargs):
     Build a client_factory for Session that creates a FakeLamp and also
     stores it in lamp_holder[0], so the test can inspect it afterwards.
     """
+
     async def factory(name, on_disconnect):
         lamp = FakeLamp(on_disconnect=on_disconnect, **kwargs)
         lamp_holder.append(lamp)
         return lamp
+
     return factory

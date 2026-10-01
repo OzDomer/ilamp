@@ -6,11 +6,11 @@ build-backend = "setuptools.build_meta"
 name = "ilamp"
 version = "0.1.0"
 description = "Control an old i_Lamp Bluetooth speaker lamp from Python (reverse-engineered protocol)"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = ["bleak>=0.21"]
 
 [project.optional-dependencies]
-dev = ["pytest"]
+dev = ["pytest", "ruff"]
 
 # Only ilamp/ is the library. tests/ and examples/ stay in the repo
 # but don't get installed as packages.
@@ -19,3 +19,8 @@ packages = ["ilamp"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+# The code already uses ~100-char lines; ruff's default of 88 would churn every file.
+line-length = 100
+target-version = "py311"

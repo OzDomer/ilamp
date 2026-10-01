@@ -6,13 +6,15 @@ Control a 10-year-old Chinese Bluetooth speaker lamp ("i_Lamp") from Python. The
 import asyncio
 from ilamp import Lamp, Mode
 
+
 async def main():
     async with Lamp() as lamp:
-        await lamp.color(255, 0, 0)        # red
+        await lamp.color(255, 0, 0)  # red
         await lamp.brightness(80)
         await lamp.mode(Mode.CANDLELIGHT)
         print(lamp.state)
         # LampState(on=True, brightness=80, rgb=(255, 0, 0), mode=<Mode.CANDLELIGHT: 6>)
+
 
 asyncio.run(main())
 ```

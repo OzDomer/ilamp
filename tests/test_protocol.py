@@ -24,6 +24,7 @@ def hx(s: str) -> bytes:
 # Building: our packets must equal what the app sent
 # ---------------------------------------------------------------------------
 
+
 def test_handshake_matches_capture():
     # frames 5835 and 5836
     assert p.handshake() == [
@@ -39,7 +40,7 @@ def test_heartbeat_matches_capture():
 
 def test_power_matches_capture():
     assert p.power(False) == hx("01fe0000 5181 1800 0000000000000000 0d07020301020e00")  # 6086
-    assert p.power(True) == hx("01fe0000 5181 1800 0000000000000000 0d07020301010e00")   # 6213
+    assert p.power(True) == hx("01fe0000 5181 1800 0000000000000000 0d07020301010e00")  # 6213
 
 
 def test_color_matches_capture():
@@ -55,6 +56,7 @@ def test_color_matches_capture():
 
 def test_color_rejects_out_of_range():
     import pytest
+
     with pytest.raises(ValueError):
         p.color(256, 0, 0)
     with pytest.raises(ValueError):
@@ -73,7 +75,7 @@ def test_read_state_matches_capture():
 
 def test_time_sync_matches_capture():
     # frame 5844: the app setting the clock to 2026-10-01 20:50:25
-    assert p.time_sync(datetime(2026, 10, 1, 20, 50, 25)) == hx(
+    assert p.time_sync(datetime(2026, 10, 1, 20, 50, 25)) == hx(  # noqa: DTZ001 - lamp clock has no tz
         "01fe0000 5300 1800 0000000000000000 ea070a0114321900"
     )
 
@@ -81,6 +83,7 @@ def test_time_sync_matches_capture():
 # ---------------------------------------------------------------------------
 # Parsing: real lamp replies must decode to what we saw on the lamp
 # ---------------------------------------------------------------------------
+
 
 def test_parse_report_after_dim_blue():
     # demo run: reply to "blue, brightness 20"
@@ -119,8 +122,7 @@ def test_unknown_mode_is_kept_as_int():
 def test_non_state_packets_parse_to_none():
     # heartbeat answer (frame 5843) - a STATUS packet, not a state report
     status = hx(
-        "01fe0000 4100 2800 0000000000000000"
-        "001f001f0700000800000000000000000000000001030000"
+        "01fe0000 4100 2800 0000000000000000001f001f0700000800000000000000000000000001030000"
     )
     assert p.parse_state(status) is None
     # a reply that isn't about the light state (frame 5874)
