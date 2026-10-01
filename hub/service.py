@@ -21,7 +21,7 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from ilamp import Lamp, LampState, Mode
 
@@ -54,9 +54,18 @@ class LampService:
         self,
         lamp_factory: LampFactory = Lamp,
         retry_delays: Sequence[float] = RETRY_DELAYS,
+        color_scale: tuple[float, float, float] = (1.0, 1.0, 1.0),
     ):
+        """
+        color_scale: R, G, B multipliers applied before a color reaches the
+            lamp (its green and blue overpower red, so white looks cyan).
+            The lamp reports the corrected bytes back; the service undoes
+            the scale on the way in, so clients always see the color they
+            asked for and the correction stays a hardware detail.
+        """
         self._make_lamp = lamp_factory
         self._delays = tuple(retry_delays)
+        self._scale = color_scale
         self._lamp: Lamp | None = None  # the CURRENT lamp; old ones are ignored
         self._status = HubStatus(connected=False, lamp=None)
         self._subscribers: set[asyncio.Queue[HubStatus]] = set()
@@ -107,19 +116,27 @@ class LampService:
 
     async def power(self, on: bool) -> LampState:
         lamp = self._require_lamp()
-        return await (lamp.on() if on else lamp.off())
+        return self._perceived(await (lamp.on() if on else lamp.off()))
 
     async def color(self, r: int, g: int, b: int, brightness: int | None = None) -> LampState:
-        return await self._require_lamp().color(r, g, b, brightness)
+        return self._perceived(await self._require_lamp().color(r, g, b, brightness))
 
     async def brightness(self, value: int) -> LampState:
-        return await self._require_lamp().brightness(value)
+        return self._perceived(await self._require_lamp().brightness(value))
 
     async def mode(self, m: Mode) -> LampState:
-        return await self._require_lamp().mode(m)
+        return self._perceived(await self._require_lamp().mode(m))
 
     async def refresh(self) -> LampState:
-        return await self._require_lamp().refresh()
+        return self._perceived(await self._require_lamp().refresh())
+
+    def _perceived(self, state: LampState) -> LampState:
+        """The lamp's state with the color scale undone: what the user asked for."""
+        rgb = tuple(
+            min(255, round(v / k)) if k > 0 else v
+            for v, k in zip(state.rgb, self._scale, strict=True)
+        )
+        return replace(state, rgb=rgb)
 
     def _require_lamp(self) -> Lamp:
         if self._lamp is None or not self._status.connected:
@@ -145,7 +162,7 @@ class LampService:
 
             failures = 0
             self._lamp = lamp
-            self._set_status(HubStatus(connected=True, lamp=lamp.state))
+            self._set_status(HubStatus(connected=True, lamp=self._perceived(lamp.state)))
             log.info("Connected to the lamp: %s", lamp.state)
 
             await self._dropped.wait()
@@ -164,13 +181,15 @@ class LampService:
 
         def on_state(state: LampState) -> None:
             if holder and holder[0] is self._lamp:
-                self._set_status(HubStatus(connected=True, lamp=state))
+                self._set_status(HubStatus(connected=True, lamp=self._perceived(state)))
 
         def on_disconnect() -> None:
             if holder and holder[0] is self._lamp:
                 self._dropped.set()
 
-        lamp = self._make_lamp(on_state=on_state, on_disconnect=on_disconnect)
+        lamp = self._make_lamp(
+            on_state=on_state, on_disconnect=on_disconnect, color_scale=self._scale
+        )
         holder.append(lamp)
         return lamp
 

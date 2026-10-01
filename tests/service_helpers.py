@@ -11,7 +11,7 @@ from tests.fake_lamp import FakeLamp, factory_for
 FAST = {"heartbeat_interval": 0.05, "confirm_timeout": 0.3}
 
 
-def make_service(fail_first: int = 0, **fake_options):
+def make_service(fail_first: int = 0, color_scale=None, **fake_options):
     """
     A service whose Lamp talks to a FakeLamp. fail_first=N makes the first
     N connection attempts fail with LampNotFoundError (a missed scan).
@@ -29,7 +29,8 @@ def make_service(fail_first: int = 0, **fake_options):
     def lamp_factory(**kwargs) -> Lamp:
         return Lamp(client_factory=client_factory, **FAST, **kwargs)
 
-    service = LampService(lamp_factory=lamp_factory, retry_delays=(0.05, 0.05))
+    service_options = {} if color_scale is None else {"color_scale": color_scale}
+    service = LampService(lamp_factory=lamp_factory, retry_delays=(0.05, 0.05), **service_options)
     return service, fakes, attempts
 
 

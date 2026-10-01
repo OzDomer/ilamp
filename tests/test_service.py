@@ -191,3 +191,22 @@ def test_a_stale_lamp_cannot_change_the_status_after_a_reconnect():
             await service.stop()
 
     run(go())
+
+
+def test_reported_colors_are_in_the_users_space_not_the_lamps():
+    # color_scale corrects the lamp's cyan-leaning white on the way OUT.
+    # The lamp then reports the corrected bytes back. Clients must see the
+    # color they asked for, or "white" would render orange on the page.
+    async def go():
+        service, fakes, _ = make_service(color_scale=(1.0, 0.5, 0.25))
+        await service.start()
+        try:
+            await wait_until(lambda: service.status.connected)
+            state = await service.color(200, 200, 200)
+            assert fakes[0].state["rgb"] == [200, 100, 50]  # what the lamp got
+            assert state.rgb == (200, 200, 200)  # what the user asked for
+            assert service.status.lamp.rgb == (200, 200, 200)
+        finally:
+            await service.stop()
+
+    run(go())

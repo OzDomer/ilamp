@@ -50,7 +50,7 @@ def main() -> None:
     )
 
     service = LampService(
-        lamp_factory=lambda **kwargs: Lamp(name=args.lamp_name, color_scale=scale, **kwargs)
+        lamp_factory=lambda **kwargs: Lamp(name=args.lamp_name, **kwargs), color_scale=scale
     )
     uvicorn.run(create_app(service), host=args.host, port=args.port, log_level="info")
 
