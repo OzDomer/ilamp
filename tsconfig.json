@@ -1,0 +1,16 @@
+{
+  // The browser runs hub/static/app.js; it is compiled from hub/ui/app.ts
+  // and committed, so running the hub needs no Node at all.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmitOnError": true,
+    "newLine": "lf",
+    "rootDir": "hub/ui",
+    "outDir": "hub/static"
+  },
+  "include": ["hub/ui"]
+}

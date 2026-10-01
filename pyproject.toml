@@ -18,6 +18,9 @@ hub = ["fastapi", "uvicorn", "websockets"]
 [tool.setuptools]
 packages = ["ilamp", "hub"]
 
+[tool.setuptools.package-data]
+hub = ["static/*"]  # the web UI ships with the package
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 

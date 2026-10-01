@@ -14,8 +14,10 @@ import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.staticfiles import StaticFiles
 
 from ilamp import CommandNotConfirmedError
 
@@ -33,6 +35,8 @@ from .service import HubStatus, LampService, LampUnavailableError
 log = logging.getLogger(__name__)
 
 Send = Callable[[dict], Awaitable[None]]
+
+STATIC_DIR = Path(__file__).parent / "static"  # the web UI: index.html, app.js, style.css
 
 
 def create_app(service: LampService) -> FastAPI:
@@ -67,6 +71,9 @@ def create_app(service: LampService) -> FastAPI:
             finally:
                 pusher.cancel()
                 await asyncio.gather(pusher, return_exceptions=True)
+
+    # Mounted last, so /ws is matched first: everything else is the UI.
+    app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="ui")
 
     return app
 

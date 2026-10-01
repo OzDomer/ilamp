@@ -117,3 +117,12 @@ def test_clients_that_leave_are_forgotten():
             connected_state(ws)
             wait_until(lambda: service.subscriber_count == 1)
         wait_until(lambda: service.subscriber_count == 0)
+
+
+def test_the_ui_is_served_at_the_root():
+    with running_app() as (client, _, _):
+        page = client.get("/")
+        assert page.status_code == 200
+        assert "text/html" in page.headers["content-type"]
+        assert "i_Lamp" in page.text
+        assert client.get("/app.js").status_code == 200

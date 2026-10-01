@@ -1,0 +1,12 @@
+{
+  "name": "ilamp-hub-ui",
+  "private": true,
+  "description": "TypeScript source for the hub's web UI. `npm run build` compiles hub/ui/ into hub/static/.",
+  "scripts": {
+    "build": "tsc",
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.9"
+  }
+}
