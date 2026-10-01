@@ -6,10 +6,17 @@ must be rejected with a message a human can act on.
 """
 
 import pytest
-from hub.messages import ColorRequest, ModeRequest, parse_request, status_message
 
+from hub.messages import (
+    ColorRequest,
+    ModeRequest,
+    SunRequest,
+    SunTemperatureRequest,
+    parse_request,
+    status_message,
+)
 from hub.service import HubStatus
-from ilamp import LampState, Mode
+from ilamp import LampState, Mode, SunState
 
 
 def test_color_request_without_brightness_keeps_it_unset():
@@ -49,6 +56,7 @@ def test_status_message_is_plain_json_with_mode_names():
         "type": "state",
         "connected": True,
         "lamp": {"on": True, "brightness": 180, "rgb": [255, 120, 40], "mode": "normal"},
+        "sun": None,
     }
 
 
@@ -57,4 +65,23 @@ def test_status_message_while_disconnected_has_no_lamp():
         "type": "state",
         "connected": False,
         "lamp": None,
+        "sun": None,
     }
+
+
+def test_sun_requests_parse():
+    req = parse_request('{"id": 9, "type": "sun", "on": true}')
+    assert isinstance(req, SunRequest) and req.on is True
+    req = parse_request('{"type": "sun_temperature", "value": 200}')
+    assert isinstance(req, SunTemperatureRequest) and req.value == 200
+    with pytest.raises(ValueError, match="value"):
+        parse_request('{"type": "sun_temperature", "value": 300}')
+
+
+def test_status_message_carries_the_ring():
+    state = LampState(on=False, brightness=180, rgb=(255, 120, 40), mode=Mode.NORMAL)
+    sun = SunState(on=True, level=16, temperature=40)
+    msg = status_message(HubStatus(connected=True, lamp=state, sun=sun))
+    assert msg["sun"] == {"on": True, "temperature": 40}
+    assert msg["lamp"]["on"] is False
+    assert status_message(HubStatus(connected=False, lamp=None, sun=None))["sun"] is None

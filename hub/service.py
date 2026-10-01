@@ -23,7 +23,7 @@ from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, replace
 
-from ilamp import Lamp, LampState, Mode
+from ilamp import Lamp, LampState, Mode, SunState
 
 log = logging.getLogger(__name__)
 
@@ -41,7 +41,8 @@ class HubStatus:
     """What the hub knows: is the lamp connected, and what did it last report."""
 
     connected: bool
-    lamp: LampState | None  # None while disconnected
+    lamp: LampState | None  # the RGB light; None while disconnected
+    sun: SunState | None = None  # the white ring; None while disconnected
 
 
 # Builds a Lamp. The service passes on_state= and on_disconnect= itself;
@@ -130,6 +131,13 @@ class LampService:
     async def refresh(self) -> LampState:
         return self._perceived(await self._require_lamp().refresh())
 
+    async def sun(self, on: bool) -> SunState:
+        lamp = self._require_lamp()
+        return await (lamp.sun_on() if on else lamp.sun_off())
+
+    async def sun_temperature(self, value: int) -> SunState:
+        return await self._require_lamp().sun_temperature(value)
+
     def _perceived(self, state: LampState) -> LampState:
         """The lamp's state with the color scale undone: what the user asked for."""
         rgb = tuple(
@@ -162,7 +170,9 @@ class LampService:
 
             failures = 0
             self._lamp = lamp
-            self._set_status(HubStatus(connected=True, lamp=self._perceived(lamp.state)))
+            self._set_status(
+                HubStatus(connected=True, lamp=self._perceived(lamp.state), sun=lamp.sun)
+            )
             log.info("Connected to the lamp: %s", lamp.state)
 
             await self._dropped.wait()
@@ -181,14 +191,21 @@ class LampService:
 
         def on_state(state: LampState) -> None:
             if holder and holder[0] is self._lamp:
-                self._set_status(HubStatus(connected=True, lamp=self._perceived(state)))
+                self._set_status(replace(self._status, connected=True, lamp=self._perceived(state)))
+
+        def on_sun(sun: SunState) -> None:
+            if holder and holder[0] is self._lamp:
+                self._set_status(replace(self._status, connected=True, sun=sun))
 
         def on_disconnect() -> None:
             if holder and holder[0] is self._lamp:
                 self._dropped.set()
 
         lamp = self._make_lamp(
-            on_state=on_state, on_disconnect=on_disconnect, color_scale=self._scale
+            on_state=on_state,
+            on_sun=on_sun,
+            on_disconnect=on_disconnect,
+            color_scale=self._scale,
         )
         holder.append(lamp)
         return lamp

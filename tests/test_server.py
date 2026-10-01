@@ -92,7 +92,7 @@ def test_unknown_mode_name_is_rejected_with_the_known_names():
 def test_command_while_the_lamp_is_away_gets_an_error_not_a_hang():
     with running_app(fail_first=1000) as (client, _, _), client.websocket_connect("/ws") as ws:
         first = ws.receive_json()
-        assert first == {"type": "state", "connected": False, "lamp": None}
+        assert first == {"type": "state", "connected": False, "lamp": None, "sun": None}
         ws.send_json({"id": 5, "type": "power", "on": True})
         msg = ws.receive_json()
         assert msg["type"] == "error" and msg["id"] == 5
@@ -126,3 +126,18 @@ def test_the_ui_is_served_at_the_root():
         assert "text/html" in page.headers["content-type"]
         assert "i_Lamp" in page.text
         assert client.get("/app.js").status_code == 200
+
+
+def test_the_ring_is_controlled_and_reported_over_the_socket():
+    with running_app() as (client, _, fakes), client.websocket_connect("/ws") as ws:
+        state = connected_state(ws)
+        assert state["sun"] == {"on": False, "temperature": 128}
+        ws.send_json({"id": 1, "type": "sun", "on": True})
+        msgs = [ws.receive_json() for _ in range(3)]  # ack + ring state + rgb-off state
+        assert {"type": "ack", "id": 1} in msgs
+        last = [m for m in msgs if m["type"] == "state"][-1]
+        assert last["sun"]["on"] is True and last["lamp"]["on"] is False
+        assert fakes[0].sun["power"] == 1
+        ws.send_json({"id": 2, "type": "sun_temperature", "value": 0})
+        msgs = [ws.receive_json() for _ in range(2)]
+        assert next(m for m in msgs if m["type"] == "state")["sun"]["temperature"] == 0

@@ -210,3 +210,28 @@ def test_reported_colors_are_in_the_users_space_not_the_lamps():
             await service.stop()
 
     run(go())
+
+
+def test_the_ring_is_part_of_the_status_and_its_changes_are_broadcast():
+    async def go():
+        service, fakes, _ = make_service()
+        await service.start()
+        try:
+            await wait_until(lambda: service.status.connected)
+            assert service.status.sun.on is False
+            async with service.subscribe() as queue:
+                await next_status(queue)
+                sun = await service.sun(True)
+                assert sun.on is True and fakes[0].sun["power"] == 1
+                # the ring coming on switched the RGB light off: both land in the status
+                status = await next_status(queue)
+                while status.lamp.on or not status.sun.on:
+                    status = await next_status(queue)
+                assert status.lamp.on is False and status.sun.on is True
+                await service.sun_temperature(0)
+                status = await next_status(queue)
+                assert status.sun.temperature == 0
+        finally:
+            await service.stop()
+
+    run(go())

@@ -9,11 +9,14 @@ it in the ack or error so the client can match answers to requests:
     {"id": 3, "type": "brightness", "value": 80}
     {"id": 4, "type": "mode", "mode": "rainbow"}
     {"id": 5, "type": "refresh"}
+    {"id": 6, "type": "sun", "on": true}                 the white ring
+    {"id": 7, "type": "sun_temperature", "value": 0}     0 warm .. 255 cold
 
 Hub -> client:
 
-    {"type": "state", "connected": true, "lamp": {"on": true, "brightness": 180,
-                                                  "rgb": [255, 120, 40], "mode": "normal"}}
+    {"type": "state", "connected": true,
+     "lamp": {"on": true, "brightness": 180, "rgb": [255, 120, 40], "mode": "normal"},
+     "sun": {"on": false, "temperature": 128}}
     {"type": "state", "connected": false, "lamp": null}
     {"type": "ack", "id": 2}
     {"type": "error", "id": 4, "message": "..."}
@@ -81,7 +84,25 @@ class RefreshRequest(_Request):
     type: Literal["refresh"]
 
 
-Request = PowerRequest | ColorRequest | BrightnessRequest | ModeRequest | RefreshRequest
+class SunRequest(_Request):
+    type: Literal["sun"]
+    on: bool
+
+
+class SunTemperatureRequest(_Request):
+    type: Literal["sun_temperature"]
+    value: Byte  # 0 warm .. 255 cold
+
+
+Request = (
+    PowerRequest
+    | ColorRequest
+    | BrightnessRequest
+    | ModeRequest
+    | RefreshRequest
+    | SunRequest
+    | SunTemperatureRequest
+)
 
 # `type` picks the model, so a wrong `type` says so instead of failing all five.
 _request_adapter = TypeAdapter(Annotated[Request, Field(discriminator="type")])
@@ -117,7 +138,7 @@ def peek_id(text: str) -> int | None:
 
 
 def status_message(status: HubStatus) -> dict:
-    lamp = status.lamp
+    lamp, sun = status.lamp, status.sun
     return {
         "type": "state",
         "connected": status.connected,
@@ -129,6 +150,7 @@ def status_message(status: HubStatus) -> dict:
             "rgb": list(lamp.rgb),
             "mode": _mode_name(lamp.mode),
         },
+        "sun": None if sun is None else {"on": sun.on, "temperature": sun.temperature},
     }
 
 

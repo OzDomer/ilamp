@@ -29,6 +29,8 @@ from .messages import (
     PowerRequest,
     RefreshRequest,
     Request,
+    SunRequest,
+    SunTemperatureRequest,
 )
 from .service import HubStatus, LampService, LampUnavailableError
 
@@ -114,3 +116,7 @@ async def _dispatch(service: LampService, request: Request) -> None:
             await service.mode(request.mode)
         case RefreshRequest():
             await service.refresh()
+        case SunRequest():
+            await service.sun(request.on)
+        case SunTemperatureRequest():
+            await service.sun_temperature(request.value)
