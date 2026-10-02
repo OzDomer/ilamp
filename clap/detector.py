@@ -37,7 +37,9 @@ class Settings:
 
     # rule 1: onset
     onset_ratio: float = 8.0  # peak must exceed background RMS by this factor...
-    floor: float = 0.02  # ...and this absolute level (full scale is 1.0)
+    # ...and this absolute level (full scale is 1.0). Measured in a lived-in room with the
+    # mic's Windows "audio enhancements" OFF: household sounds 0.03-0.19, claps 0.35-0.53.
+    floor: float = 0.25
     # rule 2: from quiet
     quiet_before_ms: int = 100
     quiet_ratio: float = 3.0  # earlier blocks' RMS must be within this of background

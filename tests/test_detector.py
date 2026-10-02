@@ -106,3 +106,20 @@ def test_settings_are_tunable():
     signal = sequence(silence(1), clap(), silence(0.5), clap(), silence(1.5))
     events = feed(Detector(Settings(double_max_s=0.3)), signal)
     assert [e for _, e in events] == ["clap", "clap"]
+
+
+def scaled(signal: np.ndarray, peak: float) -> np.ndarray:
+    return (signal * (peak / np.max(np.abs(signal)))).astype(np.float32)
+
+
+def test_default_floor_ignores_household_sounds_but_hears_claps():
+    # Measured 2026-10-02 with the mic's "audio enhancements" off: household
+    # sounds (throat, typing, eating) peaked 0.03-0.19, real claps 0.35-0.53.
+    household = sequence(silence(1), scaled(clap(), 0.15), silence(0.5), scaled(clap(), 0.15))
+    assert feed(Detector(), sequence(household, silence(1.5))) == []
+    claps = sequence(silence(1), scaled(clap(), 0.4), silence(0.5), scaled(clap(), 0.4))
+    assert [e for _, e in feed(Detector(), sequence(claps, silence(1.5)))] == [
+        "clap",
+        "clap",
+        "double",
+    ]

@@ -67,7 +67,9 @@ python -m clap               double clap -> toggle the lamp (the hub must be run
 
 A clap is a sharp spike from quiet that dies fast. The detector checks four things per 20 ms block: the peak is far above the room's background level and above a floor; the blocks just before were quiet; the level is back down within ~80 ms (speech, music and a vacuum cleaner fail this); and nothing counts for 150 ms after a clap (its echo). Two claps 0.2–0.8 s apart make a double; single claps are ignored on purpose, too many things sound like one. Sustained loud sound (the lamp's own speaker) suspends detection until it is quiet again.
 
-`--device` picks a microphone (`--list-devices`); `--floor`, `--onset-ratio` and `--loud` adjust the thresholds. The detector never touches the lamp: it sends the hub the same request the page's Off control would.
+**Turn off the microphone's audio enhancements first** (Control Panel → Sound → Recording → the mic → Properties → Advanced → uncheck *Enable audio enhancements*). That processing is built for calls: it boosts voices and squashes sudden noises, so with it on, a throat-clear can out-shout a clap.
+
+`--device` picks a microphone (`--list-devices`); `--floor` (default 0.25, a clap's minimum peak), `--onset-ratio` and `--loud` adjust the thresholds. `--monitor` shows the peaks, so you can see where your claps and your room's other sounds land. The detector never touches the lamp: it sends the hub the same request the page's Off control would.
 
 ## How I reverse-engineered it
 
